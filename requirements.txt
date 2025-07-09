@@ -2,6 +2,8 @@
 beautifulsoup4==4.12.3
 requests==2.31.0
 selenium==4.18.1
+feedparser==6.0.10
+python-dateutil==2.8.2
 
 # API and AI
 google-genai
