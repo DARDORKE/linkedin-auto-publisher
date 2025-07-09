@@ -42,16 +42,6 @@ export interface Domain {
   color: string;
 }
 
-export interface CacheStats {
-  total_articles: number;
-  fresh_articles: number;
-  expired_articles: number;
-}
-
-export interface DomainCacheStats {
-  cached_count: number;
-  sources_count: number;
-}
 
 export const postApi = {
   getPending: () => api.get<{ posts: Post[] }>('/posts/pending'),
@@ -84,8 +74,6 @@ export const scrapeApi = {
 
 export const domainApi = {
   getDomains: () => api.get<{ domains: Record<string, Domain> }>('/domains'),
-  getCacheStats: () => api.get<CacheStats>('/cache/stats'),
-  getCacheByDomains: () => api.get<Record<string, DomainCacheStats>>('/cache/domains'),
 };
 
 export default api;

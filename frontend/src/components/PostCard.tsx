@@ -148,10 +148,14 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
               size="small"
               color="primary"
               startIcon={<Publish />}
-              onClick={() => handleAction(() => onPublish(post.id), 'Post publié sur LinkedIn')}
+              onClick={() => {
+                navigator.clipboard.writeText(post.content)
+                  .then(() => toast.success('Post copié dans le presse-papier'))
+                  .catch(() => toast.error('Erreur lors de la copie'));
+              }}
               disabled={loading}
             >
-              Publier
+              Copier le post
             </Button>
           )}
           <IconButton

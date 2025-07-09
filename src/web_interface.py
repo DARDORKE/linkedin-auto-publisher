@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from src.database import DatabaseManager
-from src.linkedin_publisher import LinkedInPublisher
 from src.fullstack_scraper import FullStackDevScraper
 from src.specialized_generator import SpecializedPostGenerator
 from loguru import logger
@@ -25,8 +24,7 @@ def api_info():
         'endpoints': {
             'posts': '/api/posts/',
             'scraping': '/api/scrape/',
-            'domains': '/api/domains',
-            'cache': '/api/cache/'
+            'domains': '/api/domains'
         }
     })
 
@@ -49,25 +47,8 @@ def approve_post(post_id):
 
 @app.route('/api/posts/publish/<int:post_id>', methods=['POST'])
 def publish_post(post_id):
-    posts = db.get_approved_posts()
-    post = next((p for p in posts if p['id'] == post_id), None)
-    
-    if not post:
-        return jsonify({'success': False, 'message': 'Post not found or not approved'}), 404
-    
-    try:
-        publisher = LinkedInPublisher()
-        success = publisher.publish_with_retry(post['content'])
-        
-        if success:
-            db.mark_as_published(post_id)
-            return jsonify({'success': True, 'message': 'Post published successfully'})
-        else:
-            return jsonify({'success': False, 'message': 'Failed to publish post'}), 500
-            
-    except Exception as e:
-        logger.error(f"Error publishing post: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+    # Cette route n'est plus utilisée car la publication se fait maintenant via copier/coller
+    return jsonify({'success': False, 'message': 'La publication directe n\'est plus supportée. Utilisez la fonctionnalité de copie.'}), 410
 
 @app.route('/api/posts/delete/<int:post_id>', methods=['DELETE'])
 def delete_post(post_id):
@@ -207,49 +188,6 @@ def get_domains():
     
     return jsonify({'domains': domains})
 
-@app.route('/api/cache/stats')
-def get_cache_stats():
-    """Retourne les statistiques du cache d'articles"""
-    stats = db.get_cache_stats()
-    return jsonify(stats)
-
-@app.route('/api/cache/domains')
-def get_cache_by_domains():
-    """Retourne le nombre d'articles en cache par domaine"""
-    try:
-        # Initialize scraper if needed
-        global scraper
-        if scraper is None:
-            scraper = FullStackDevScraper(db_manager=db)
-        
-        domain_stats = {}
-        for domain in ['frontend', 'backend', 'ai']:
-            # Obtenir les sources du domaine
-            domain_sources = []
-            domain_categories = {
-                'frontend': ['frontend', 'dev_fr', 'community'],
-                'backend': ['backend', 'dev_fr', 'devops', 'enterprise', 'community'],
-                'ai': ['ai', 'dev_fr', 'community'],
-            }
-            
-            target_categories = domain_categories.get(domain, [])
-            for source in scraper.sources:
-                source_category = source.get('category', '')
-                source_domains = source.get('domains', [])
-                if source_category in target_categories or domain in source_domains:
-                    domain_sources.append(source['name'])
-            
-            # Compter les articles en cache pour ce domaine
-            cached_articles = db.get_cached_articles(source_names=domain_sources)
-            domain_stats[domain] = {
-                'cached_count': len(cached_articles),
-                'sources_count': len(domain_sources)
-            }
-        
-        return jsonify(domain_stats)
-    except Exception as e:
-        logger.error(f"Error getting cache stats by domain: {e}")
-        return jsonify({})
 
 def run_web_interface():
     port = int(os.getenv('FLASK_PORT', 5000))

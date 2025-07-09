@@ -159,7 +159,7 @@ export default function Dashboard() {
               Tableau de bord
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Vue d'ensemble de votre système de publication LinkedIn
+              Vue d'ensemble de votre système de génération de posts
             </Typography>
           </Box>
           <IconButton 
