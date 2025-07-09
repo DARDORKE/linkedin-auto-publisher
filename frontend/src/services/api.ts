@@ -76,7 +76,7 @@ export const scrapeApi = {
       success: boolean;
       post: Post;
       message: string;
-    }>('/generate-from-selection', { articles, domain }),
+    }>('/scrape/generate-from-selection', { articles, domain }),
 };
 
 export const domainApi = {

@@ -14,6 +14,9 @@ import {
   Typography,
   useTheme,
   useMediaQuery,
+  Avatar,
+  Divider,
+  Badge,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -21,6 +24,8 @@ import {
   Pending as PendingIcon,
   CheckCircle as ApprovedIcon,
   Search as SearchIcon,
+  LinkedIn as LinkedInIcon,
+  TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -30,10 +35,10 @@ interface Props {
 }
 
 const menuItems = [
-  { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Posts en attente', icon: <PendingIcon />, path: '/posts/pending' },
-  { text: 'Posts approuvés', icon: <ApprovedIcon />, path: '/posts/approved' },
-  { text: 'Scraping manuel', icon: <SearchIcon />, path: '/scraping' },
+  { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard', badge: null },
+  { text: 'Posts en attente', icon: <PendingIcon />, path: '/posts/pending', badge: 'pending' },
+  { text: 'Posts approuvés', icon: <ApprovedIcon />, path: '/posts/approved', badge: 'approved' },
+  { text: 'Scraping manuel', icon: <SearchIcon />, path: '/scraping', badge: null },
 ];
 
 export default function Layout({ children }: Props) {
@@ -47,27 +52,105 @@ export default function Layout({ children }: Props) {
   };
 
   const drawer = (
-    <Box>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-          LinkedIn Publisher
-        </Typography>
-      </Toolbar>
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              component={Link}
-              to={item.path}
-              selected={location.pathname === item.path}
-              onClick={() => isMobile && setMobileOpen(false)}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ p: 3, borderBottom: '1px solid #e2e8f0' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+            <LinkedInIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
+              LinkedIn
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.2 }}>
+              Auto Publisher
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+      
+      <Box sx={{ flex: 1, py: 2 }}>
+        <List sx={{ px: 2 }}>
+          {menuItems.map((item) => (
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                component={Link}
+                to={item.path}
+                selected={location.pathname === item.path}
+                onClick={() => isMobile && setMobileOpen(false)}
+                sx={{
+                  borderRadius: 2,
+                  minHeight: 48,
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.main',
+                    color: 'white',
+                    '&:hover': {
+                      backgroundColor: 'primary.dark',
+                    },
+                    '& .MuiListItemIcon-root': {
+                      color: 'white',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                    borderRadius: 2,
+                  },
+                }}
+              >
+                <ListItemIcon 
+                  sx={{ 
+                    minWidth: 40,
+                    color: location.pathname === item.path ? 'white' : 'text.secondary',
+                  }}
+                >
+                  {item.badge ? (
+                    <Badge 
+                      badgeContent={item.badge === 'pending' ? '3' : item.badge === 'approved' ? '2' : 0} 
+                      color={item.badge === 'pending' ? 'warning' : 'success'}
+                      variant="dot"
+                    >
+                      {item.icon}
+                    </Badge>
+                  ) : (
+                    item.icon
+                  )}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.text} 
+                  primaryTypographyProps={{
+                    fontSize: '0.875rem',
+                    fontWeight: location.pathname === item.path ? 600 : 500,
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
+
+      <Divider />
+      
+      <Box sx={{ p: 2 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1, 
+          p: 2, 
+          backgroundColor: 'success.light', 
+          borderRadius: 2,
+          color: 'success.dark'
+        }}>
+          <TrendingUpIcon sx={{ fontSize: 20 }} />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+              Système actif
+            </Typography>
+            <Typography variant="caption" sx={{ lineHeight: 1.2 }}>
+              Tout fonctionne bien
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
     </Box>
   );
 
@@ -110,7 +193,9 @@ export default function Layout({ children }: Props) {
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
               width: drawerWidth,
-              backgroundColor: '#f8f9fa',
+              backgroundColor: '#ffffff',
+              borderRight: '1px solid #e2e8f0',
+              boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -1px rgba(0, 0, 0, 0.06)',
             },
           }}
         >
@@ -121,10 +206,10 @@ export default function Layout({ children }: Props) {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: { xs: 2, md: 4 },
           width: { md: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
-          backgroundColor: '#f5f5f5',
+          backgroundColor: 'background.default',
         }}
       >
         <Toolbar />
