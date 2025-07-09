@@ -165,20 +165,20 @@ export default function ManualScraping() {
         }}
       >
         <CardActionArea onClick={() => handleDomainSelect(domainKey)}>
-          <CardContent>
+          <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
-              <Typography variant="h6" component="div">
+              <Typography variant="h6" component="div" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                 {domain.name}
               </Typography>
             </Stack>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
               {domain.description}
             </Typography>
             <Stack direction="row" alignItems="center" spacing={1} mt={1}>
               <Box
                 sx={{
-                  width: 20,
-                  height: 20,
+                  width: { xs: 16, sm: 20 },
+                  height: { xs: 16, sm: 20 },
                   borderRadius: '50%',
                   backgroundColor: domain.color,
                 }}
@@ -197,7 +197,7 @@ export default function ManualScraping() {
         backgroundColor: selected ? '#f0f8ff' : 'white',
       }}
     >
-      <CardContent>
+      <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
           <FormControlLabel
             control={
@@ -210,14 +210,14 @@ export default function ManualScraping() {
             sx={{ mr: 1 }}
           />
           <Box sx={{ flex: 1 }} onClick={() => handleArticleToggle(index)}>
-            <Typography variant="subtitle2" gutterBottom>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
               {article.title}
             </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
+            <Typography variant="body2" color="text.secondary" paragraph sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
               {article.summary ? article.summary.substring(0, 150) : 'Aucun résumé disponible'}...
             </Typography>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Stack direction="row" spacing={1}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={{ xs: 1, sm: 0 }}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip label={article.source} size="small" color="primary" variant="outlined" />
                 <Chip 
                   label={`Score: ${Math.round(article.relevance_score)}`} 
@@ -259,26 +259,26 @@ export default function ManualScraping() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' } }}>
         Scraping Manuel
       </Typography>
 
 
       {/* Étape 1: Sélection du domaine */}
       <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
+        <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+          <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
             1. Choisir un domaine
           </Typography>
-          <Grid container spacing={2}>
+          <Grid container spacing={{ xs: 2, sm: 2, md: 3 }}>
             {Object.entries(domains).map(([key, domain]) => (
-              <Grid item xs={12} sm={6} md={3} key={key}>
+              <Grid item xs={12} sm={6} lg={3} key={key}>
                 <DomainCard domainKey={key} domain={domain} />
               </Grid>
             ))}
           </Grid>
           <Box sx={{ mt: 2 }}>
-            <Stack direction="row" spacing={2} alignItems="center" mb={2}>
+            <Stack direction="row" spacing={2} alignItems="center" mb={2} flexWrap="wrap" useFlexGap>
               {scrapingTime && (
                 <Chip
                   label={`${scrapingTime}ms`}
@@ -295,6 +295,7 @@ export default function ManualScraping() {
                 onClick={handleScrape}
                 disabled={!selectedDomain || scrapeMutation.isPending}
                 startIcon={scrapeMutation.isPending ? <CircularProgress size={20} /> : <Refresh />}
+                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
               >
                 {scrapeMutation.isPending ? 'Scraping...' : 'Lancer le scraping'}
               </Button>
@@ -306,17 +307,18 @@ export default function ManualScraping() {
       {/* Étape 2: Sélection des articles */}
       {scrapedArticles.length > 0 && (
         <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+          <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+            <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
               2. Sélectionner les articles ({scrapedArticles.length} articles trouvés)
             </Typography>
             
-            <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
               <Button
                 variant="outlined"
                 onClick={handleSelectAll}
                 startIcon={<SelectAll />}
                 size="small"
+                sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
               >
                 Tout sélectionner
               </Button>
@@ -325,18 +327,20 @@ export default function ManualScraping() {
                 onClick={handleClearAll}
                 startIcon={<Clear />}
                 size="small"
+                sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
               >
                 Tout désélectionner
               </Button>
               <Chip
                 label={`${selectedArticles.length} article${selectedArticles.length !== 1 ? 's' : ''} sélectionné${selectedArticles.length !== 1 ? 's' : ''}`}
                 color="primary"
+                size="small"
               />
             </Stack>
 
-            <Grid container spacing={2}>
+            <Grid container spacing={{ xs: 2, sm: 2, md: 3 }}>
               {scrapedArticles.map((article, index) => (
-                <Grid item xs={12} md={6} key={index}>
+                <Grid item xs={12} lg={6} key={index}>
                   <ArticleCard
                     article={article}
                     index={index}
@@ -352,22 +356,23 @@ export default function ManualScraping() {
       {/* Étape 3: Génération */}
       {selectedArticles.length > 0 && (
         <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+          <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+            <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
               3. Générer le post
             </Typography>
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
               <Button
                 variant="contained"
                 color="success"
                 onClick={handleGenerate}
                 disabled={selectedArticles.length < 2 || generateMutation.isPending}
                 startIcon={generateMutation.isPending ? <CircularProgress size={20} /> : <Send />}
+                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
               >
                 {generateMutation.isPending ? 'Génération...' : 'Générer le post'}
               </Button>
               {selectedArticles.length < 2 && (
-                <Alert severity="warning" sx={{ flex: 1 }}>
+                <Alert severity="warning" sx={{ flex: 1, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                   Sélectionnez au moins 2 articles pour générer un post
                 </Alert>
               )}

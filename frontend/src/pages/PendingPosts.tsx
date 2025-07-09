@@ -54,12 +54,12 @@ export default function PendingPosts() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' } }}>
         Posts en attente
       </Typography>
       
       {posts.length === 0 ? (
-        <Alert severity="info">
+        <Alert severity="info" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
           Aucun post en attente d'approbation
         </Alert>
       ) : (

@@ -28,7 +28,7 @@ import {
   TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
 
-const drawerWidth = 240;
+const drawerWidth = 280;
 
 interface Props {
   children: React.ReactNode;
@@ -53,16 +53,16 @@ export default function Layout({ children }: Props) {
 
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 3, borderBottom: '1px solid #e2e8f0' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+      <Box sx={{ p: { xs: 2, sm: 3 }, borderBottom: '1px solid #e2e8f0' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 }, mb: 2 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 36, sm: 40 }, height: { xs: 36, sm: 40 } }}>
             <LinkedInIcon />
           </Avatar>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.2, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
               LinkedIn
             </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.2 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.2, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
               Auto Publisher
             </Typography>
           </Box>
@@ -70,7 +70,7 @@ export default function Layout({ children }: Props) {
       </Box>
       
       <Box sx={{ flex: 1, py: 2 }}>
-        <List sx={{ px: 2 }}>
+        <List sx={{ px: { xs: 1, sm: 2 } }}>
           {menuItems.map((item) => (
             <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
@@ -80,7 +80,8 @@ export default function Layout({ children }: Props) {
                 onClick={() => isMobile && setMobileOpen(false)}
                 sx={{
                   borderRadius: 2,
-                  minHeight: 48,
+                  minHeight: { xs: 44, sm: 48 },
+                  px: { xs: 1.5, sm: 2 },
                   '&.Mui-selected': {
                     backgroundColor: 'primary.main',
                     color: 'white',
@@ -99,7 +100,7 @@ export default function Layout({ children }: Props) {
               >
                 <ListItemIcon 
                   sx={{ 
-                    minWidth: 40,
+                    minWidth: { xs: 36, sm: 40 },
                     color: location.pathname === item.path ? 'white' : 'text.secondary',
                   }}
                 >
@@ -118,7 +119,7 @@ export default function Layout({ children }: Props) {
                 <ListItemText 
                   primary={item.text} 
                   primaryTypographyProps={{
-                    fontSize: '0.875rem',
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
                     fontWeight: location.pathname === item.path ? 600 : 500,
                   }}
                 />
@@ -130,22 +131,22 @@ export default function Layout({ children }: Props) {
 
       <Divider />
       
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: 1, 
-          p: 2, 
+          gap: { xs: 0.5, sm: 1 }, 
+          p: { xs: 1.5, sm: 2 }, 
           backgroundColor: 'success.light', 
           borderRadius: 2,
           color: 'success.dark'
         }}>
-          <TrendingUpIcon sx={{ fontSize: 20 }} />
+          <TrendingUpIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
           <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
               Système actif
             </Typography>
-            <Typography variant="caption" sx={{ lineHeight: 1.2 }}>
+            <Typography variant="caption" sx={{ lineHeight: 1.2, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
               Tout fonctionne bien
             </Typography>
           </Box>
@@ -192,7 +193,7 @@ export default function Layout({ children }: Props) {
           sx={{
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
-              width: drawerWidth,
+              width: { xs: 260, sm: drawerWidth },
               backgroundColor: '#ffffff',
               borderRight: '1px solid #e2e8f0',
               boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -1px rgba(0, 0, 0, 0.06)',
@@ -206,7 +207,7 @@ export default function Layout({ children }: Props) {
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, md: 4 },
+          p: { xs: 1, sm: 2, md: 3, lg: 4 },
           width: { md: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
           backgroundColor: 'background.default',

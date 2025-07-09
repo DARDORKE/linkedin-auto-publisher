@@ -53,12 +53,12 @@ export default function ApprovedPosts() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' } }}>
         Posts approuvés
       </Typography>
       
       {posts.length === 0 ? (
-        <Alert severity="info">
+        <Alert severity="info" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
           Aucun post approuvé prêt à être publié
         </Alert>
       ) : (

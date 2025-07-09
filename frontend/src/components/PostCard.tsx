@@ -77,24 +77,24 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
 
   return (
     <>
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+      <Card sx={{ mb: { xs: 1.5, sm: 2 } }}>
+        <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} gap={{ xs: 1, sm: 0 }} mb={2}>
             <Chip 
               label={post.domain_name} 
               color="primary" 
               size="small" 
             />
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
               {format(new Date(post.generated_at), 'dd MMMM yyyy HH:mm', { locale: fr })}
             </Typography>
           </Stack>
 
-          <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-wrap' }}>
+          <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-wrap', fontSize: { xs: '0.875rem', sm: '1rem' }, lineHeight: { xs: 1.5, sm: 1.6 } }}>
             {formatContent(post.content)}
           </Typography>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" mb={2}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" mb={2} useFlexGap>
             {post.hashtags.map((tag, index) => (
               <Chip
                 key={index}
@@ -103,7 +103,8 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
                 sx={{ 
                   backgroundColor: '#e7f3ff',
                   color: '#0a66c2',
-                  mb: 0.5
+                  mb: 0.5,
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' }
                 }}
               />
             ))}
@@ -114,13 +115,14 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
               size="small"
               onClick={() => setShowSources(!showSources)}
               endIcon={showSources ? <ExpandLess /> : <ExpandMore />}
+              sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             >
               {post.sources_count} sources utilisées
             </Button>
             <Collapse in={showSources}>
-              <Box sx={{ mt: 1, pl: 2 }}>
+              <Box sx={{ mt: 1, pl: { xs: 1, sm: 2 } }}>
                 {post.source_articles.map((article, index) => (
-                  <Typography key={index} variant="caption" display="block" sx={{ mb: 0.5 }}>
+                  <Typography key={index} variant="caption" display="block" sx={{ mb: 0.5, fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
                     • <Link href={article.url} target="_blank" rel="noopener">
                       {article.title}
                     </Link> ({article.source})
@@ -131,7 +133,7 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
           </Box>
         </CardContent>
 
-        <CardActions>
+        <CardActions sx={{ px: { xs: 2, sm: 3 }, py: { xs: 1, sm: 2 }, flexWrap: 'wrap', gap: { xs: 0.5, sm: 1 } }}>
           {type === 'pending' && onApprove && (
             <Button
               size="small"
@@ -139,6 +141,7 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
               startIcon={<CheckCircle />}
               onClick={() => handleAction(() => onApprove(post.id), 'Post approuvé')}
               disabled={loading}
+              sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             >
               Approuver
             </Button>
@@ -154,6 +157,7 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
                   .catch(() => toast.error('Erreur lors de la copie'));
               }}
               disabled={loading}
+              sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             >
               Copier le post
             </Button>
@@ -183,20 +187,27 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
       </Card>
 
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Éditer le post</DialogTitle>
-        <DialogContent>
+        <DialogTitle sx={{ fontSize: { xs: '1.125rem', sm: '1.25rem' } }}>Éditer le post</DialogTitle>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
           <TextField
             fullWidth
             multiline
             rows={10}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            sx={{ mt: 2 }}
+            sx={{ 
+              mt: 2,
+              '& .MuiInputBase-root': {
+                fontSize: { xs: '0.875rem', sm: '1rem' }
+              }
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditOpen(false)}>Annuler</Button>
-          <Button onClick={handleSave} variant="contained">
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: { xs: 1.5, sm: 2 } }}>
+          <Button onClick={() => setEditOpen(false)} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            Annuler
+          </Button>
+          <Button onClick={handleSave} variant="contained" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
             Sauvegarder
           </Button>
         </DialogActions>

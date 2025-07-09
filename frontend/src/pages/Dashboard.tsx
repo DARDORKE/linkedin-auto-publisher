@@ -72,13 +72,13 @@ export default function Dashboard() {
           }
         }}
       >
-        <CardContent sx={{ pb: 2 }}>
-          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
+        <CardContent sx={{ pb: { xs: 1.5, sm: 2 }, px: { xs: 2, sm: 3 } }}>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={{ xs: 1, sm: 2 }}>
             <Box sx={{ flex: 1 }}>
               <Typography 
                 color="text.secondary" 
                 variant="body2" 
-                sx={{ fontWeight: 500, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}
+                sx={{ fontWeight: 500, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
               >
                 {title}
               </Typography>
@@ -93,27 +93,29 @@ export default function Dashboard() {
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
+                  fontSize: { xs: '1.75rem', sm: '2rem', md: '2.5rem' }
                 }}
               >
                 {value}
               </Typography>
               {subtitle && (
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
                   {subtitle}
                 </Typography>
               )}
               {trend && (
                 <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 1 }}>
                   {trend > 0 ? (
-                    <TrendingUp sx={{ fontSize: 16, color: 'success.main' }} />
+                    <TrendingUp sx={{ fontSize: { xs: 14, sm: 16 }, color: 'success.main' }} />
                   ) : (
-                    <TrendingDown sx={{ fontSize: 16, color: 'error.main' }} />
+                    <TrendingDown sx={{ fontSize: { xs: 14, sm: 16 }, color: 'error.main' }} />
                   )}
                   <Typography 
                     variant="caption" 
                     sx={{ 
                       color: trend > 0 ? 'success.main' : 'error.main',
-                      fontWeight: 600 
+                      fontWeight: 600,
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' }
                     }}
                   >
                     {Math.abs(trend)}% vs hier
@@ -126,8 +128,8 @@ export default function Dashboard() {
               sx={{ 
                 bgcolor: `${color}20`,
                 color: color,
-                width: 56,
-                height: 56,
+                width: { xs: 48, sm: 56 },
+                height: { xs: 48, sm: 56 },
                 transition: 'all 0.3s ease-in-out',
                 boxShadow: `0 4px 20px ${color}30`,
               }}
@@ -143,8 +145,8 @@ export default function Dashboard() {
   return (
     <Fade in={true} timeout={800}>
       <Box>
-        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
+        <Box sx={{ mb: { xs: 2, sm: 3, md: 4 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 2, sm: 0 } }}>
+          <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
             <Typography 
               variant="h3" 
               sx={{ 
@@ -153,12 +155,13 @@ export default function Dashboard() {
                 backgroundClip: 'text',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
-                mb: 1
+                mb: 1,
+                fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
               }}
             >
               Tableau de bord
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
               Vue d'ensemble de votre système de génération de posts
             </Typography>
           </Box>
@@ -166,15 +169,16 @@ export default function Dashboard() {
             sx={{ 
               bgcolor: 'primary.main', 
               color: 'white',
-              '&:hover': { bgcolor: 'primary.dark' }
+              '&:hover': { bgcolor: 'primary.dark' },
+              size: { xs: 'small', sm: 'medium' }
             }}
           >
             <Refresh />
           </IconButton>
         </Box>
 
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
+        <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 3, sm: 4 } }}>
+          <Grid item xs={12} sm={6} lg={3}>
             <StatCard
               title="Posts en attente"
               value={pending.length}
@@ -184,7 +188,7 @@ export default function Dashboard() {
               trend={12}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} lg={3}>
             <StatCard
               title="Posts approuvés"
               value={approved.length}
@@ -194,7 +198,7 @@ export default function Dashboard() {
               trend={8}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} lg={3}>
             <StatCard
               title="Total posts"
               value={pending.length + approved.length}
@@ -204,7 +208,7 @@ export default function Dashboard() {
               trend={15}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={12} sm={6} lg={3}>
             <StatCard
               title="Domaines actifs"
               value={Object.keys(domains).length}
@@ -216,13 +220,13 @@ export default function Dashboard() {
           </Grid>
         </Grid>
 
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+        <Grid container spacing={{ xs: 2, sm: 3 }}>
+          <Grid item xs={12} lg={6}>
             <Grow in={true} timeout={1000}>
               <Card sx={{ height: '100%' }}>
-                <CardContent>
+                <CardContent sx={{ px: { xs: 2, sm: 3 } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                       Répartition des posts
                     </Typography>
                     <IconButton size="small">
@@ -260,12 +264,12 @@ export default function Dashboard() {
             </Grow>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} lg={6}>
             <Grow in={true} timeout={1200}>
               <Card sx={{ height: '100%' }}>
-                <CardContent>
+                <CardContent sx={{ px: { xs: 2, sm: 3 } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                       Posts par domaine
                     </Typography>
                     <IconButton size="small">
@@ -328,22 +332,22 @@ export default function Dashboard() {
           <Grid item xs={12}>
             <Grow in={true} timeout={1400}>
               <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                <CardContent sx={{ px: { xs: 2, sm: 3 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 2, sm: 3 } }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                       État du système
                     </Typography>
                     <IconButton size="small">
                       <MoreVert />
                     </IconButton>
                   </Box>
-                  <Stack spacing={3}>
+                  <Stack spacing={{ xs: 2, sm: 3 }}>
                     <Box>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                           Posts approuvés: {approved.length} / {pending.length + approved.length}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                           {pending.length + approved.length > 0 ? Math.round((approved.length / (pending.length + approved.length)) * 100) : 0}%
                         </Typography>
                       </Stack>
@@ -351,7 +355,7 @@ export default function Dashboard() {
                         variant="determinate"
                         value={pending.length + approved.length > 0 ? (approved.length / (pending.length + approved.length)) * 100 : 0}
                         sx={{ 
-                          height: 12, 
+                          height: { xs: 10, sm: 12 }, 
                           borderRadius: 6,
                           backgroundColor: '#e2e8f0',
                           '& .MuiLinearProgress-bar': {
@@ -362,7 +366,7 @@ export default function Dashboard() {
                       />
                     </Box>
                     <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 500 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 500, fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                         Domaines configurés
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -371,12 +375,13 @@ export default function Dashboard() {
                             key={key}
                             label={domain.name}
                             variant="outlined"
-                            size="medium"
+                            size="small"
                             sx={{
                               borderRadius: 2,
                               fontWeight: 500,
                               borderColor: domain.color,
                               color: domain.color,
+                              fontSize: { xs: '0.7rem', sm: '0.875rem' },
                               '&:hover': {
                                 transform: 'translateY(-1px)',
                                 boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1)',
