@@ -4,7 +4,7 @@ from datetime import datetime
 from loguru import logger
 import os
 from src.fullstack_scraper import FullStackDevScraper
-from src.fullstack_generator import FullStackPostGenerator
+from src.specialized_generator import SpecializedPostGenerator
 from src.database import DatabaseManager
 from src.web_interface import run_web_interface
 import threading
@@ -12,7 +12,7 @@ import threading
 class PostScheduler:
     def __init__(self):
         self.scraper = FullStackDevScraper()
-        self.generator = FullStackPostGenerator()
+        self.generator = SpecializedPostGenerator()
         self.db = DatabaseManager()
         self.interval_hours = int(os.getenv('SCRAPING_INTERVAL_HOURS', 6))
         self.max_articles = int(os.getenv('MAX_ARTICLES_PER_SCRAPE', 40))
@@ -30,14 +30,15 @@ class PostScheduler:
                 logger.warning("No articles found during scraping")
                 return
             
-            # Generate fullstack synthesis
-            variations = self.generator.generate_article_variations(articles, count=1)
-            logger.info(f"Generated {len(variations)} fullstack article(s)")
+            # Generate specialized posts by domain
+            specialized_posts = self.generator.generate_specialized_posts(articles)
+            logger.info(f"Generated {len(specialized_posts)} specialized post(s)")
             
             # Save to database
-            for post in variations:
+            for post in specialized_posts:
                 post_id = self.db.save_post(post)
-                logger.info(f"Saved post {post_id} to database")
+                domain_name = post.get('domain_name', 'Unknown')
+                logger.info(f"Saved {domain_name} post {post_id} to database")
                 
         except Exception as e:
             logger.error(f"Error in post generation: {e}")
