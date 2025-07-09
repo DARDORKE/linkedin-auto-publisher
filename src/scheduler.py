@@ -55,8 +55,8 @@ class PostScheduler:
         # Start web interface
         self.start_web_interface()
         
-        # Initial generation
-        self.generate_posts()
+        # Skip initial generation for manual mode
+        # self.generate_posts()
         
         # Schedule periodic generation
         schedule.every(self.interval_hours).hours.do(self.generate_posts)

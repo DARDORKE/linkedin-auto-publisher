@@ -9,13 +9,17 @@ function showTab(tabName) {
     });
     
     if (tabName === 'pending') {
-        document.querySelector('.tab-button:first-child').classList.add('active');
+        document.querySelector('.tab-button:nth-child(1)').classList.add('active');
         document.getElementById('pending-tab').classList.add('active');
         loadPendingPosts();
-    } else {
-        document.querySelector('.tab-button:last-child').classList.add('active');
+    } else if (tabName === 'approved') {
+        document.querySelector('.tab-button:nth-child(2)').classList.add('active');
         document.getElementById('approved-tab').classList.add('active');
         loadApprovedPosts();
+    } else if (tabName === 'manual') {
+        document.querySelector('.tab-button:nth-child(3)').classList.add('active');
+        document.getElementById('manual-tab').classList.add('active');
+        loadManualScraping();
     }
 }
 
@@ -234,6 +238,218 @@ window.onclick = function(event) {
     if (event.target == document.getElementById('edit-modal')) {
         closeModal();
     }
+}
+
+// Variables for manual scraping
+let currentDomain = null;
+let scrapedArticles = [];
+let selectedArticles = [];
+
+// Manual scraping functions
+async function loadManualScraping() {
+    await loadDomains();
+    resetManualScraping();
+}
+
+async function loadDomains() {
+    const container = document.getElementById('domains-container');
+    container.innerHTML = '<div class="loading">Chargement des domaines...</div>';
+    
+    try {
+        const response = await fetch('/api/domains');
+        const data = await response.json();
+        
+        container.innerHTML = Object.entries(data.domains).map(([key, domain]) => `
+            <div class="domain-card" onclick="selectDomain('${key}')">
+                <div class="domain-name">${domain.name}</div>
+                <div class="domain-description">${domain.description}</div>
+                <div class="domain-color" style="background-color: ${domain.color}"></div>
+            </div>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = '<div class="error">Erreur lors du chargement des domaines</div>';
+    }
+}
+
+async function selectDomain(domain) {
+    // Reset previous state
+    resetManualScraping();
+    
+    // Update UI
+    document.querySelectorAll('.domain-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    event.target.closest('.domain-card').classList.add('selected');
+    
+    currentDomain = domain;
+    
+    // Start scraping
+    await scrapeDomain(domain);
+}
+
+async function scrapeDomain(domain) {
+    const articlesSection = document.getElementById('articles-section');
+    const container = document.getElementById('articles-container');
+    
+    articlesSection.style.display = 'block';
+    container.innerHTML = '<div class="loading">Scraping en cours...</div>';
+    
+    try {
+        const response = await fetch(`/api/scrape/${domain}`, { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+            scrapedArticles = data.articles;
+            displayArticles(scrapedArticles);
+            showMessage(`${data.total_count} articles trouvés pour ${domain}`, 'success');
+        } else {
+            container.innerHTML = `<div class="error">Erreur: ${data.message}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = '<div class="error">Erreur lors du scraping</div>';
+        console.error('Scraping error:', error);
+    }
+}
+
+function displayArticles(articles) {
+    const container = document.getElementById('articles-container');
+    
+    if (articles.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #666;">Aucun article trouvé</p>';
+        return;
+    }
+    
+    container.innerHTML = articles.map((article, index) => `
+        <div class="article-card" data-index="${index}" onclick="toggleArticle(${index})">
+            <input type="checkbox" class="article-checkbox" ${selectedArticles.includes(index) ? 'checked' : ''}>
+            <div class="article-meta">
+                <span class="article-source">${article.source}</span>
+                <span class="article-score">Score: ${Math.round(article.relevance_score || 0)}</span>
+            </div>
+            <div class="article-title">${article.title}</div>
+            <div class="article-summary">${(article.summary || '').substring(0, 150)}...</div>
+        </div>
+    `).join('');
+    
+    updateSelectionCount();
+}
+
+function toggleArticle(index) {
+    const checkbox = document.querySelector(`[data-index="${index}"] .article-checkbox`);
+    const card = document.querySelector(`[data-index="${index}"]`);
+    
+    if (selectedArticles.includes(index)) {
+        selectedArticles = selectedArticles.filter(i => i !== index);
+        checkbox.checked = false;
+        card.classList.remove('selected');
+    } else {
+        selectedArticles.push(index);
+        checkbox.checked = true;
+        card.classList.add('selected');
+    }
+    
+    updateSelectionCount();
+    updateGenerateButton();
+}
+
+function selectAllArticles() {
+    selectedArticles = scrapedArticles.map((_, index) => index);
+    document.querySelectorAll('.article-card').forEach((card, index) => {
+        card.classList.add('selected');
+        card.querySelector('.article-checkbox').checked = true;
+    });
+    updateSelectionCount();
+    updateGenerateButton();
+}
+
+function deselectAllArticles() {
+    selectedArticles = [];
+    document.querySelectorAll('.article-card').forEach(card => {
+        card.classList.remove('selected');
+        card.querySelector('.article-checkbox').checked = false;
+    });
+    updateSelectionCount();
+    updateGenerateButton();
+}
+
+function updateSelectionCount() {
+    const count = selectedArticles.length;
+    document.getElementById('selection-count').textContent = `${count} article${count !== 1 ? 's' : ''} sélectionné${count !== 1 ? 's' : ''}`;
+}
+
+function updateGenerateButton() {
+    const button = document.getElementById('generate-btn');
+    const generationSection = document.getElementById('generation-section');
+    
+    if (selectedArticles.length >= 2) {
+        button.disabled = false;
+        generationSection.style.display = 'block';
+    } else {
+        button.disabled = true;
+        if (selectedArticles.length === 0) {
+            generationSection.style.display = 'none';
+        }
+    }
+}
+
+async function generateFromSelection() {
+    const button = document.getElementById('generate-btn');
+    const status = document.getElementById('generation-status');
+    
+    if (selectedArticles.length < 2) {
+        showMessage('Sélectionnez au moins 2 articles', 'error');
+        return;
+    }
+    
+    button.disabled = true;
+    status.innerHTML = 'Génération en cours...';
+    status.className = 'generation-status loading';
+    
+    try {
+        const articlesToGenerate = selectedArticles.map(index => scrapedArticles[index]);
+        
+        const response = await fetch('/api/generate-from-selection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                articles: articlesToGenerate,
+                domain: currentDomain
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            status.innerHTML = `✅ ${data.message}`;
+            status.className = 'generation-status success';
+            
+            // Reset and show success
+            setTimeout(() => {
+                showMessage('Post généré avec succès ! Consultez l\'onglet "Posts en attente"', 'success');
+                showTab('pending');
+            }, 2000);
+        } else {
+            status.innerHTML = `❌ ${data.message}`;
+            status.className = 'generation-status error';
+            button.disabled = false;
+        }
+    } catch (error) {
+        status.innerHTML = '❌ Erreur lors de la génération';
+        status.className = 'generation-status error';
+        button.disabled = false;
+        console.error('Generation error:', error);
+    }
+}
+
+function resetManualScraping() {
+    selectedArticles = [];
+    scrapedArticles = [];
+    
+    document.getElementById('articles-section').style.display = 'none';
+    document.getElementById('generation-section').style.display = 'none';
+    document.getElementById('articles-container').innerHTML = '';
+    document.getElementById('generation-status').innerHTML = '';
+    document.getElementById('selection-count').textContent = '0 articles sélectionnés';
 }
 
 // Load initial content

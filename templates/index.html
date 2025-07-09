@@ -13,6 +13,7 @@
         <div class="tabs">
             <button class="tab-button active" onclick="showTab('pending')">Posts en attente</button>
             <button class="tab-button" onclick="showTab('approved')">Posts approuvés</button>
+            <button class="tab-button" onclick="showTab('manual')">Scraping Manuel</button>
         </div>
         
         <div id="pending-tab" class="tab-content active">
@@ -23,6 +24,34 @@
         <div id="approved-tab" class="tab-content">
             <h2>Posts approuvés (prêts à publier)</h2>
             <div id="approved-posts" class="posts-container"></div>
+        </div>
+        
+        <div id="manual-tab" class="tab-content">
+            <h2>Scraping Manuel</h2>
+            <div class="manual-scraping-container">
+                <div class="scraping-section">
+                    <h3>1. Choisir un domaine</h3>
+                    <div id="domains-container" class="domains-grid"></div>
+                </div>
+                
+                <div class="scraping-section" id="articles-section" style="display: none;">
+                    <h3>2. Sélectionner les articles</h3>
+                    <div class="articles-controls">
+                        <button onclick="selectAllArticles()">Tout sélectionner</button>
+                        <button onclick="deselectAllArticles()">Tout désélectionner</button>
+                        <span id="selection-count">0 articles sélectionnés</span>
+                    </div>
+                    <div id="articles-container" class="articles-grid"></div>
+                </div>
+                
+                <div class="scraping-section" id="generation-section" style="display: none;">
+                    <h3>3. Générer le post</h3>
+                    <div class="generation-controls">
+                        <button id="generate-btn" onclick="generateFromSelection()" disabled>Générer le post</button>
+                        <div id="generation-status"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     

@@ -933,3 +933,164 @@ class FullStackDevScraper:
             trending[domain] = [tech for tech, _ in sorted_techs]
             
         return trending
+    
+    def scrape_domain_sources(self, domain: str, max_articles: int = 50) -> List[Dict]:
+        """Scrape seulement les sources d'un domaine spécifique"""
+        domain_articles = []
+        
+        # Mapper les domaines aux catégories de sources
+        domain_categories = {
+            'frontend': ['frontend', 'dev_fr', 'community'],
+            'backend': ['backend', 'dev_fr', 'devops', 'enterprise', 'community'],
+            'ai': ['ai', 'dev_fr', 'community'],
+        }
+        
+        # Filtrer les sources par domaine
+        target_categories = domain_categories.get(domain, [])
+        domain_sources = []
+        
+        for source in self.sources:
+            source_category = source.get('category', '')
+            source_domains = source.get('domains', [])
+            
+            # Inclure si la catégorie correspond ou si le domaine est dans les domaines de la source
+            if source_category in target_categories or domain in source_domains:
+                domain_sources.append(source)
+        
+        logger.info(f"Scraping {len(domain_sources)} sources for domain {domain}")
+        
+        # Scraper uniquement les sources du domaine
+        for source in domain_sources:
+            try:
+                if source['type'] == 'rss':
+                    articles = self._scrape_rss(source)
+                else:
+                    articles = self._scrape_web(source)
+                    
+                # Filtrer par pertinence technologique
+                relevant_articles = self._filter_tech_articles(articles)
+                domain_articles.extend(relevant_articles)
+                logger.info(f"Scraped {len(relevant_articles)} tech articles from {source['name']}")
+                time.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"Error scraping {source['name']}: {e}")
+        
+        # Filtrer par fraîcheur (articles de moins de 3 jours)
+        fresh_articles = self._filter_by_freshness(domain_articles, max_days=3)
+        logger.info(f"Kept {len(fresh_articles)} articles after freshness filter (< 3 days)")
+        
+        # Dédupliquer et scorer spécifiquement pour le domaine
+        unique_articles = self._deduplicate_articles(fresh_articles)
+        scored_articles = self._score_domain_articles(unique_articles, domain)
+        
+        # Trier par score et limiter
+        sorted_articles = sorted(scored_articles, key=lambda x: x['relevance_score'], reverse=True)
+        
+        return sorted_articles[:max_articles]
+    
+    def _score_domain_articles(self, articles: List[Dict], target_domain: str) -> List[Dict]:
+        """Score les articles spécifiquement pour un domaine cible"""
+        keywords = self.tech_keywords.get(target_domain, {})
+        
+        if not keywords:
+            # Fallback au scoring général si le domaine n'est pas reconnu
+            return self._score_tech_articles(articles)
+        
+        for article in articles:
+            score = 0
+            
+            # Score de base selon la fiabilité de la source
+            score += article.get('reliability', 5) * 8
+            
+            # Score de fraîcheur (courbe exponentielle)
+            hours_old = (datetime.now() - article['published']).total_seconds() / 3600
+            if hours_old <= 24:
+                score += 50
+            elif hours_old <= 48:
+                score += 30
+            elif hours_old <= 72:
+                score += 15
+            else:
+                score += 5
+            
+            # Analyse du contenu pour le domaine spécifique
+            text_content = f"{article['title']} {article.get('summary', '')}".lower()
+            
+            domain_score = 0
+            domain_matches = 0
+            
+            # Mots-clés haute priorité pour le domaine cible
+            for keyword in keywords.get('high', []):
+                if keyword in text_content:
+                    domain_score += 30  # Score élevé pour les mots-clés prioritaires
+                    domain_matches += 1
+            
+            # Mots-clés moyenne priorité
+            for keyword in keywords.get('medium', []):
+                if keyword in text_content:
+                    domain_score += 20
+                    domain_matches += 1
+            
+            # Outils et technologies
+            for keyword in keywords.get('tools', []):
+                if keyword in text_content:
+                    domain_score += 15
+                    domain_matches += 1
+            
+            # Bonus supplémentaire si l'article a plusieurs mots-clés du domaine
+            if domain_matches >= 3:
+                domain_score += 40
+            elif domain_matches >= 2:
+                domain_score += 25
+            elif domain_matches >= 1:
+                domain_score += 10
+            
+            # Malus si aucun mot-clé du domaine cible n'est trouvé
+            if domain_matches == 0:
+                domain_score -= 30
+            
+            score += domain_score
+            
+            # Bonus pour sources spécialisées dans le domaine
+            source_domains = article.get('domains', [])
+            if target_domain in source_domains:
+                score += 25
+            
+            # Bonus pour catégorie de source alignée
+            source_category = article.get('category', '')
+            if target_domain == 'frontend' and source_category == 'frontend':
+                score += 20
+            elif target_domain == 'backend' and source_category in ['backend', 'devops', 'enterprise']:
+                score += 20
+            elif target_domain == 'ai' and source_category == 'ai':
+                score += 20
+            
+            # Bonus pour sources premium
+            premium_sources = [
+                'OpenAI Blog', 'Google AI Blog', 'React Blog', 'Node.js Blog', 'Go Dev Blog', 'Rust Blog',
+                'Hugging Face Blog', 'DeepMind Blog', 'Meta AI Blog', 'MIT CSAIL News', 'Stanford AI Lab',
+                'MIT Technology Review', 'IEEE Spectrum', 'Spring Blog', 'Django News', 'CSS-Tricks',
+                'A List Apart', 'Smashing Magazine', 'Vue.js News', 'Angular Blog', 'Web.dev'
+            ]
+            if article['source'] in premium_sources:
+                score += 30
+            
+            # Malus pour titres peu informatifs
+            title_length = len(article['title'])
+            if title_length < 20:
+                score -= 15
+            elif title_length > 120:
+                score -= 5
+            
+            # Bonus pour résumé détaillé
+            summary_length = len(article.get('summary', ''))
+            if summary_length > 200:
+                score += 10
+            elif summary_length > 100:
+                score += 5
+            
+            article['relevance_score'] = max(0, score)
+            article['domain_matches'] = domain_matches
+            
+        return articles

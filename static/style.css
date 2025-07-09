@@ -248,3 +248,212 @@ button {
     border-radius: 4px;
     margin-bottom: 20px;
 }
+
+/* Scraping Manuel */
+.manual-scraping-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.scraping-section {
+    margin-bottom: 40px;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.scraping-section h3 {
+    color: #0a66c2;
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
+.domains-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.domain-card {
+    padding: 20px;
+    border: 2px solid #e5e5e5;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+}
+
+.domain-card:hover {
+    border-color: #0a66c2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.domain-card.selected {
+    border-color: #0a66c2;
+    background: #f0f8ff;
+}
+
+.domain-card .domain-name {
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.domain-card .domain-description {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.domain-card .domain-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin: 0 auto;
+}
+
+.articles-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.articles-controls button {
+    padding: 8px 16px;
+    background: #0a66c2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.articles-controls button:hover {
+    background: #084298;
+}
+
+.articles-controls span {
+    font-weight: bold;
+    color: #0a66c2;
+}
+
+.articles-grid {
+    display: grid;
+    gap: 15px;
+}
+
+.article-card {
+    padding: 15px;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+}
+
+.article-card:hover {
+    border-color: #0a66c2;
+    background: #f8f9fa;
+}
+
+.article-card.selected {
+    border-color: #0a66c2;
+    background: #f0f8ff;
+}
+
+.article-card .article-checkbox {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 18px;
+    height: 18px;
+}
+
+.article-card .article-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: #666;
+}
+
+.article-card .article-source {
+    font-weight: bold;
+    color: #0a66c2;
+}
+
+.article-card .article-score {
+    background: #e7f3ff;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+}
+
+.article-card .article-title {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.article-card .article-summary {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.3;
+    max-height: 40px;
+    overflow: hidden;
+}
+
+.generation-controls {
+    text-align: center;
+    padding: 20px;
+}
+
+.generation-controls button {
+    padding: 12px 24px;
+    font-size: 16px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.generation-controls button:hover:not(:disabled) {
+    background: #218838;
+}
+
+.generation-controls button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.generation-status {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.generation-status.loading {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.generation-status.success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.generation-status.error {
+    background: #f8d7da;
+    color: #721c24;
+}
