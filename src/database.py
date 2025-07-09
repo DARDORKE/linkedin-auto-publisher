@@ -105,12 +105,18 @@ class DatabaseManager:
             # Ancien format: array
             hashtags_list = hashtags
         
+        # Gérer le format de generated_at
+        generated_at_value = post_data.get('generated_at', datetime.now())
+        if isinstance(generated_at_value, str):
+            # Convertir string ISO en datetime Python
+            generated_at_value = datetime.fromisoformat(generated_at_value.replace('Z', '+00:00'))
+        
         post = Post(
             content=post_data['content'],
             style=post_data.get('style') or post_data.get('domain_name'),
             hashtags=json.dumps(hashtags_list),
             source_articles=json.dumps(serializable_articles),
-            generated_at=post_data.get('generated_at', datetime.now()),
+            generated_at=generated_at_value,
             variation_index=post_data.get('variation_index')
         )
         self.session.add(post)

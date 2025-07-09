@@ -46,14 +46,14 @@ article_model = api.model('Article', {
     'summary': fields.String(description='Résumé de l\'article'),
     'relevance_score': fields.Float(description='Score de pertinence'),
     'published': fields.String(description='Date de publication'),
-    'domains': fields.List(fields.String, description='Domaines associés')
+    'domains': fields.List(fields.String(), description='Domaines associés')
 })
 
 post_model = api.model('Post', {
     'id': fields.Integer(required=True, description='ID du post'),
     'content': fields.String(required=True, description='Contenu du post'),
     'domain_name': fields.String(required=True, description='Domaine du post'),
-    'hashtags': fields.List(fields.String, description='Hashtags du post'),
+    'hashtags': fields.List(fields.String(), description='Hashtags du post'),
     'source_articles': fields.List(fields.Nested(article_model), description='Articles sources'),
     'sources_count': fields.Integer(description='Nombre de sources'),
     'generated_at': fields.String(description='Date de génération'),

@@ -57,6 +57,28 @@ class SpecializedPostGenerator:
         
         return specialized_posts
     
+    def generate_domain_post(self, articles: List[Dict], domain: str) -> Dict:
+        """Génère un post pour un domaine spécifique à partir d'articles sélectionnés"""
+        try:
+            # Valider le domaine
+            if domain not in self.domains:
+                logger.error(f"Invalid domain: {domain}")
+                return None
+            
+            # Vérifier qu'on a au moins 2 articles
+            if len(articles) < 2:
+                logger.error(f"Not enough articles for generation: {len(articles)}")
+                return None
+            
+            logger.info(f"Generating post for domain {domain} with {len(articles)} articles")
+            
+            # Utiliser la méthode privée existante
+            return self._generate_domain_post(domain, articles)
+            
+        except Exception as e:
+            logger.error(f"Error in generate_domain_post: {e}")
+            return None
+    
     def _organize_articles_by_domain(self, articles: List[Dict]) -> Dict[str, List[Dict]]:
         """Organise les articles par domaine technique"""
         by_domain = {domain: [] for domain in self.domains.keys()}
@@ -294,13 +316,14 @@ class SpecializedPostGenerator:
             optimized_content = self._optimize_for_linkedin(content, domain_key)
             
             # Générer hashtags intelligents
-            hashtags = self._generate_smart_hashtags(top_articles, domain_key)
+            hashtags_str = self._generate_smart_hashtags(top_articles, domain_key)
+            hashtags_list = hashtags_str.split() if hashtags_str else []
             
             # Générer la section sources améliorée
             sources_section = self._generate_enhanced_sources(domain_key, top_articles)
             
             # Combiner tous les éléments
-            full_content = optimized_content + "\n\n" + hashtags + "\n\n" + sources_section
+            full_content = optimized_content + "\n\n" + hashtags_str + "\n\n" + sources_section
             
             return {
                 'content': full_content,
@@ -309,9 +332,9 @@ class SpecializedPostGenerator:
                 'domain_name': domain_info['name'],
                 'source_articles': top_articles,
                 'sources_count': len(set(article['source'] for article in top_articles)),
-                'hashtags': hashtags,
+                'hashtags': hashtags_list,
                 'article_context': article_context,
-                'generated_at': datetime.now()
+                'generated_at': datetime.now().isoformat()
             }
             
         except Exception as e:

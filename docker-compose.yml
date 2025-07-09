@@ -20,7 +20,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./.env:/app/.env
+    env_file:
+      - .env
     environment:
       - FLASK_PORT=5000
       - PYTHONUNBUFFERED=1
