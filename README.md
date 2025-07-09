@@ -11,31 +11,67 @@ Système automatisé pour générer et publier des posts LinkedIn sur le domaine
 
 ## Installation
 
-1. Cloner le repository et installer les dépendances :
+### Méthode 1 : Avec Docker (Recommandé)
+
+1. Cloner le repository et configurer l'environnement :
+```bash
+cp .env.example .env
+# Éditer .env avec vos clés API
+```
+
+2. Lancer avec Docker Compose :
+```bash
+# Production
+docker-compose up -d
+
+# Développement (avec hot reload)
+docker-compose -f docker-compose.dev.yml up
+```
+
+3. Accéder à l'interface : `http://localhost:5000`
+
+### Méthode 2 : Installation locale
+
+1. Installer les dépendances :
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Copier le fichier `.env.example` en `.env` et configurer les variables :
+2. Configurer l'environnement :
 ```bash
 cp .env.example .env
+# Éditer .env avec vos clés API
 ```
 
-3. Configurer les variables d'environnement :
+3. Lancer l'application :
+```bash
+python main.py
+```
+
+## Configuration
+
+Variables d'environnement requises dans `.env` :
 - `GEMINI_API_KEY` : Clé API Google Gemini
 - `LINKEDIN_EMAIL` : Email LinkedIn
 - `LINKEDIN_PASSWORD` : Mot de passe LinkedIn
 - `SCRAPING_INTERVAL_HOURS` : Intervalle de scraping (défaut: 6h)
 - `MAX_ARTICLES_PER_SCRAPE` : Nombre max d'articles (défaut: 10)
 
-## Utilisation
+## Commandes Docker utiles
 
-Lancer l'application :
 ```bash
-python main.py
-```
+# Voir les logs
+docker-compose logs -f
 
-L'interface web sera disponible sur `http://localhost:5000`
+# Redémarrer l'application
+docker-compose restart
+
+# Arrêter l'application
+docker-compose down
+
+# Reconstruire l'image
+docker-compose build --no-cache
+```
 
 ## Architecture
 

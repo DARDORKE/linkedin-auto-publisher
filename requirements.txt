@@ -4,7 +4,7 @@ requests==2.31.0
 selenium==4.18.1
 
 # API and AI
-google-generativeai==0.3.2
+google-genai
 
 # LinkedIn API (unofficial)
 linkedin-api==2.1.1
@@ -22,7 +22,6 @@ flask-cors==4.0.0
 
 # Database for storing posts
 sqlalchemy==2.0.25
-sqlite3
 
 # Logging
 loguru==0.7.2

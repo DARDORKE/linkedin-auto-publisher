@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 from typing import List, Dict
 import os
 from loguru import logger
@@ -11,8 +11,8 @@ class LinkedInPostGenerator:
         if not api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
             
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.client = genai.Client(api_key=api_key)
+        self.model_id = "gemini-2.5-flash"
         
         self.post_styles = [
             "professionnel et informatif",
@@ -29,7 +29,10 @@ class LinkedInPostGenerator:
         prompt = self._create_prompt(articles, style)
         
         try:
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=prompt
+            )
             post_content = response.text
             
             return {

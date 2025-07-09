@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: linkedin-auto-publisher
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    environment:
+      - FLASK_PORT=5000
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - linkedin-net
+
+  # Optional: Add a separate database service (PostgreSQL instead of SQLite for production)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: linkedin-db
+  #   environment:
+  #     POSTGRES_DB: linkedin_posts
+  #     POSTGRES_USER: linkedin_user
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - linkedin-net
+
+networks:
+  linkedin-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
