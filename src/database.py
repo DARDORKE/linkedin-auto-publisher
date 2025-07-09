@@ -42,11 +42,22 @@ class DatabaseManager:
         self.session = Session()
     
     def save_post(self, post_data: dict):
+        # Convert source_articles to a simpler format for JSON serialization
+        source_articles = post_data.get('source_articles', [])
+        serializable_articles = []
+        for article in source_articles:
+            serializable_article = {
+                'title': article.get('title'),
+                'url': article.get('url'),
+                'source': article.get('source')
+            }
+            serializable_articles.append(serializable_article)
+        
         post = Post(
             content=post_data['content'],
             style=post_data.get('style'),
             hashtags=json.dumps(post_data.get('hashtags', [])),
-            source_articles=json.dumps(post_data.get('source_articles', [])),
+            source_articles=json.dumps(serializable_articles),
             generated_at=post_data.get('generated_at', datetime.now()),
             variation_index=post_data.get('variation_index')
         )

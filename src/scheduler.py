@@ -3,10 +3,10 @@ import time
 from datetime import datetime
 from loguru import logger
 import os
-from scraper import TechNewsScraper
-from post_generator import LinkedInPostGenerator
-from database import DatabaseManager
-from web_interface import run_web_interface
+from src.scraper import TechNewsScraper
+from src.post_generator import LinkedInPostGenerator
+from src.database import DatabaseManager
+from src.web_interface import run_web_interface
 import threading
 
 class PostScheduler:
@@ -44,7 +44,8 @@ class PostScheduler:
     
     def start_web_interface(self):
         logger.info("Starting web interface")
-        web_thread = threading.Thread(target=run_web_interface, daemon=True)
+        # Run Flask in a separate thread without debug mode in production
+        web_thread = threading.Thread(target=lambda: run_web_interface(), daemon=True)
         web_thread.start()
     
     def start(self):

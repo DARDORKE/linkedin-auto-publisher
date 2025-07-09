@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
-from database import DatabaseManager
-from linkedin_publisher import LinkedInPublisher
+from src.database import DatabaseManager
+from src.linkedin_publisher import LinkedInPublisher
 from loguru import logger
 import os
 
@@ -75,5 +75,5 @@ def edit_post(post_id):
 
 def run_web_interface():
     port = int(os.getenv('FLASK_PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    # Avoid debug mode in threading environment
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
