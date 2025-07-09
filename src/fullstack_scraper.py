@@ -33,7 +33,7 @@ class FullStackDevScraper:
             {
                 "name": "Grafikart",
                 "type": "rss",
-                "url": "https://grafikart.fr/formations.rss",
+                "url": "https://grafikart.fr/tutoriels.rss",
                 "category": "dev_fr",
                 "reliability": 9,
                 "domains": ["frontend", "backend"]
@@ -179,11 +179,11 @@ class FullStackDevScraper:
                 "domains": ["backend"]
             },
             {
-                "name": "PHP Weekly",
+                "name": "PHP.net News",
                 "type": "rss",
-                "url": "http://www.phpweekly.com/feed.xml",
+                "url": "https://www.php.net/feed.atom",
                 "category": "backend",
-                "reliability": 8,
+                "reliability": 9,
                 "domains": ["backend"]
             },
             {
@@ -195,11 +195,11 @@ class FullStackDevScraper:
                 "domains": ["backend"]
             },
             {
-                "name": "Python Weekly",
+                "name": "Real Python",
                 "type": "rss",
-                "url": "https://www.pythonweekly.com/rss.xml",
+                "url": "https://realpython.com/atom.xml",
                 "category": "backend",
-                "reliability": 8,
+                "reliability": 9,
                 "domains": ["backend"]
             },
             {
@@ -229,7 +229,7 @@ class FullStackDevScraper:
             {
                 "name": "Google Cloud Blog",
                 "type": "rss",
-                "url": "https://cloud.google.com/blog/rss/",
+                "url": "https://cloud.google.com/blog/rss",
                 "category": "backend",
                 "reliability": 9,
                 "domains": ["backend"]
@@ -431,9 +431,9 @@ class FullStackDevScraper:
                 "domains": ["frontend", "backend", "ai"]
             },
             {
-                "name": "Wired Tech",
+                "name": "TechCrunch",
                 "type": "rss",
-                "url": "https://www.wired.com/feed/category/business/tech/rss",
+                "url": "https://techcrunch.com/feed/",
                 "category": "general",
                 "reliability": 8,
                 "domains": ["frontend", "backend", "ai"]
