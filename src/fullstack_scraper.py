@@ -528,9 +528,6 @@ class FullStackDevScraper:
                 article['extraction_quality'] = 'error'
                 article['content'] = article.get('summary', '')
     
-    def _extract_content(self, url: str) -> Optional[str]:
-        """Extraction de contenu optimisée (legacy)"""
-        return self._extract_full_content(url)
     
     def _extract_full_content(self, url: str) -> Optional[str]:
         """Extraction complète du contenu d'un article avec nettoyage avancé"""
@@ -737,34 +734,3 @@ class FullStackDevScraper:
         else:
             return 'older'
     
-    # Méthodes de compatibilité
-    def get_articles_by_domain(self, articles: List[Dict]) -> Dict[str, List[Dict]]:
-        """Organise les articles par domaine"""
-        by_domain = {'frontend': [], 'backend': [], 'ai': [], 'general': []}
-        
-        for article in articles:
-            domain = article.get('domain', 'general')
-            if domain in by_domain:
-                by_domain[domain].append(article)
-        
-        return by_domain
-    
-    def get_trending_technologies(self, articles: List[Dict]) -> Dict[str, List[str]]:
-        """Extrait les technologies tendances"""
-        tech_counts = {'frontend': {}, 'backend': {}, 'ai': {}}
-        
-        for article in articles:
-            domain = article.get('domain', 'general')
-            if domain in tech_counts:
-                for tech in article.get('metadata', {}).get('technologies', []):
-                    if tech not in tech_counts[domain]:
-                        tech_counts[domain][tech] = 0
-                    tech_counts[domain][tech] += 1
-        
-        # Top 5 par domaine
-        trending = {}
-        for domain, counts in tech_counts.items():
-            sorted_techs = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:5]
-            trending[domain] = [tech for tech, _ in sorted_techs]
-        
-        return trending
