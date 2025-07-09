@@ -50,13 +50,13 @@ class FullStackDevScraper:
                 {"name": "Smashing Magazine", "url": "https://www.smashingmagazine.com/feed/", "weight": 9},
                 {"name": "Web.dev", "url": "https://web.dev/feed.xml", "weight": 10},
                 {"name": "React Blog", "url": "https://react.dev/rss.xml", "weight": 10},
-                {"name": "Vue.js News", "url": "https://news.vuejs.org/rss.xml", "weight": 9},
+                {"name": "Vue.js Blog", "url": "https://blog.vuejs.org/feed.rss", "weight": 9},
                 {"name": "Angular Blog", "url": "https://blog.angular.io/feed", "weight": 9},
                 {"name": "Frontend Focus", "url": "https://frontendfoc.us/rss", "weight": 8},
                 {"name": "A List Apart", "url": "https://alistapart.com/main/feed/", "weight": 9},
             ],
             'backend': [
-                {"name": "Node.js Blog", "url": "https://nodejs.org/en/feed/blog.xml", "weight": 10},
+                {"name": "Node.js Medium", "url": "https://medium.com/feed/the-node-js-collection", "weight": 9},
                 {"name": "Go Dev Blog", "url": "https://go.dev/blog/feed.atom", "weight": 10},
                 {"name": "Rust Blog", "url": "https://blog.rust-lang.org/feed.xml", "weight": 10},
                 {"name": "Django News", "url": "https://django-news.com/issues.rss", "weight": 9},
@@ -64,15 +64,18 @@ class FullStackDevScraper:
                 {"name": "Docker Blog", "url": "https://www.docker.com/blog/feed/", "weight": 9},
                 {"name": "Kubernetes Blog", "url": "https://kubernetes.io/feed.xml", "weight": 9},
                 {"name": "Real Python", "url": "https://realpython.com/atom.xml", "weight": 9},
+                {"name": "Node Weekly", "url": "https://nodeweekly.com/rss/", "weight": 9},
             ],
             'ai': [
-                {"name": "OpenAI Blog", "url": "https://openai.com/news/rss.xml", "weight": 10},
-                {"name": "Hugging Face Blog", "url": "https://huggingface.co/blog/feed.xml", "weight": 10},
-                {"name": "Google AI Blog", "url": "https://research.google/blog/rss/", "weight": 10},
+                {"name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/", "weight": 10},
+                {"name": "Berkeley AI Research", "url": "https://bair.berkeley.edu/blog/feed.xml", "weight": 10},
+                {"name": "The Gradient", "url": "https://thegradient.pub/rss/", "weight": 10},
+                {"name": "Hugging Face Blog", "url": "https://huggingface.co/blog/feed.xml", "weight": 9},
                 {"name": "Anthropic News", "url": "https://rsshub.app/anthropic/news", "weight": 10},
                 {"name": "Towards Data Science", "url": "https://towardsdatascience.com/feed", "weight": 7},
                 {"name": "Machine Learning Mastery", "url": "https://machinelearningmastery.com/feed/", "weight": 8},
                 {"name": "The Batch", "url": "https://www.deeplearning.ai/the-batch/rss/", "weight": 9},
+                {"name": "Distill", "url": "https://distill.pub/rss.xml", "weight": 8},
             ],
             'general': [
                 {"name": "GitHub Blog", "url": "https://github.blog/feed/", "weight": 9},
@@ -213,6 +216,14 @@ class FullStackDevScraper:
                         if full_content:
                             article['content'] = self._clean_text(full_content)[:2000]
                     
+                    # Si pas de contenu et summary court, marquer pour extraction prioritaire
+                    if len(article['content']) < 200 and len(article['summary']) < 150:
+                        article['needs_extraction'] = True
+                    
+                    # Marquer spécifiquement les sources connues pour avoir peu de contenu
+                    if source['name'] in ['Hugging Face Blog', 'Google AI Blog', 'Web.dev', 'React Blog', 'Go Dev Blog']:
+                        article['needs_extraction'] = True
+                    
                     articles.append(article)
                     
                 except Exception as e:
@@ -281,9 +292,16 @@ class FullStackDevScraper:
     
     def _enrich_top_articles(self, articles: List[Dict]):
         """Enrichit les meilleurs articles avec du contenu"""
-        for i, article in enumerate(articles[:5]):  # Seulement les 5 premiers
+        # Priorité aux articles qui ont besoin d'extraction
+        priority_articles = [a for a in articles if a.get('needs_extraction', False)]
+        other_articles = [a for a in articles if not a.get('needs_extraction', False)]
+        
+        # Mélanger pour traiter en priorité mais pas exclusivement
+        ordered_articles = priority_articles[:3] + other_articles[:5]
+        
+        for i, article in enumerate(ordered_articles[:8]):  # Jusqu'à 8 articles
             try:
-                if not article.get('content') or len(article['content']) < 500:
+                if not article.get('content') or len(article['content']) < 500 or article.get('needs_extraction', False):
                     # Extraire le contenu si pas déjà fait
                     content = self._extract_content(article['url'])
                     if content:

@@ -5,7 +5,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 180000, // 3 minutes pour les opérations de scraping
+  timeout: 1800000, // 30 minutes pour les opérations de scraping
 });
 
 export interface Post {
@@ -29,7 +29,8 @@ export interface Article {
   title: string;
   url: string;
   source: string;
-  summary: string;
+  summary?: string;
+  content?: string;
   relevance_score: number;
   domain_matches?: number;
   published: string;

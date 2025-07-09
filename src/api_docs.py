@@ -44,6 +44,7 @@ article_model = api.model('Article', {
     'url': fields.String(required=True, description='URL de l\'article'),
     'source': fields.String(required=True, description='Source de l\'article'),
     'summary': fields.String(description='Résumé de l\'article'),
+    'content': fields.String(description='Contenu complet de l\'article'),
     'relevance_score': fields.Float(description='Score de pertinence'),
     'published': fields.String(description='Date de publication'),
     'domains': fields.List(fields.String(), description='Domaines associés')
@@ -356,12 +357,13 @@ class CacheDomains(Resource):
                     'ai': ['ai', 'dev_fr', 'community'],
                 }
                 
-                target_categories = domain_categories.get(domain, [])
-                for source in scraper.sources:
-                    source_category = source.get('category', '')
-                    source_domains = source.get('domains', [])
-                    if source_category in target_categories or domain in source_domains:
-                        domain_sources.append(source['name'])
+                # Utiliser les sources du nouveau scraper optimisé
+                if domain in scraper.sources:
+                    domain_sources = [source['name'] for source in scraper.sources[domain]]
+                elif domain == 'general':
+                    domain_sources = [source['name'] for source in scraper.sources.get('general', [])]
+                else:
+                    domain_sources = []
                 
                 cached_articles = db.get_cached_articles(source_names=domain_sources)
                 domain_stats[domain] = {

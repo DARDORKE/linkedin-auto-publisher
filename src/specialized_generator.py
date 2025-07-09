@@ -95,7 +95,9 @@ class SpecializedPostGenerator:
     
     def _determine_article_domain(self, article: Dict) -> str:
         """Détermine le domaine principal d'un article"""
-        text_content = (article['title'] + ' ' + article.get('summary', '')).lower()
+        # Utiliser le contenu complet si disponible, sinon le summary
+        content = article.get('content', '') or article.get('summary', '')
+        text_content = (article['title'] + ' ' + content).lower()
         category = article.get('category', 'general')
         
         # Scoring par domaine
@@ -152,7 +154,9 @@ class SpecializedPostGenerator:
             content_score += title_quality
             
             # Bonus pour résumé informatif
-            summary_quality = self._evaluate_summary_quality(article.get('summary', ''))
+            # Utiliser le contenu complet pour évaluer la qualité
+            content = article.get('content', '') or article.get('summary', '')
+            summary_quality = self._evaluate_summary_quality(content)
             content_score += summary_quality
             
             # Malus pour redondance technologique
@@ -273,7 +277,9 @@ class SpecializedPostGenerator:
     
     def _extract_technologies(self, article: Dict) -> set:
         """Extrait les technologies mentionnées dans un article"""
-        text = (article['title'] + ' ' + article.get('summary', '')).lower()
+        # Utiliser le contenu complet si disponible
+        content = article.get('content', '') or article.get('summary', '')
+        text = (article['title'] + ' ' + content).lower()
         technologies = set()
         
         # Technologies communes
@@ -352,7 +358,9 @@ class SpecializedPostGenerator:
         # Technologies mentionnées dans les articles
         mentioned_techs = set()
         for article in articles:
-            text = (article['title'] + ' ' + article.get('summary', '')).lower()
+            # Utiliser le contenu complet si disponible
+            content = article.get('content', '') or article.get('summary', '')
+            text = (article['title'] + ' ' + content).lower()
             for keyword in domain_info['keywords']:
                 if keyword in text:
                     mentioned_techs.add(keyword.capitalize())
@@ -486,7 +494,9 @@ Rédige l'article généraliste tech:
         companies = ['google', 'microsoft', 'openai', 'anthropic', 'meta', 'apple', 'amazon', 'netflix', 'uber', 'spotify']
         
         for article in articles:
-            text = (article['title'] + ' ' + article.get('summary', '')).lower()
+            # Utiliser le contenu complet si disponible
+            content = article.get('content', '') or article.get('summary', '')
+            text = (article['title'] + ' ' + content).lower()
             
             # Technologies
             for tech in self.domains[domain_key]['keywords']:
@@ -712,7 +722,9 @@ Crée le post LinkedIn tech leader:
             
             # Ajouter des indicateurs de contexte
             indicators = []
-            text = (title + ' ' + article.get('summary', '')).lower()
+            # Utiliser le contenu complet si disponible
+            content = article.get('content', '') or article.get('summary', '')
+            text = (title + ' ' + content).lower()
             
             if any(word in text for word in ['release', 'launch', 'announce']):
                 indicators.append('🚀')
@@ -782,7 +794,9 @@ Crée le post LinkedIn tech leader:
         }
         
         for article in articles:
-            text = (article['title'] + ' ' + article.get('summary', '')).lower()
+            # Utiliser le contenu complet si disponible
+            content = article.get('content', '') or article.get('summary', '')
+            text = (article['title'] + ' ' + content).lower()
             for tech, hashtag in tech_hashtags.items():
                 if tech in text and len(hashtags) < 8:
                     hashtags.add(hashtag)

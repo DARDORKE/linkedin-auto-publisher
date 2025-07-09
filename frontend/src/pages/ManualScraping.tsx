@@ -183,7 +183,7 @@ export default function ManualScraping() {
                 {article.title}
               </Typography>
               <Typography variant="body2" color="text.secondary" paragraph>
-                {article.summary.substring(0, 150)}...
+                {article.summary ? article.summary.substring(0, 150) : 'Aucun résumé disponible'}...
               </Typography>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Chip label={article.source} size="small" color="primary" variant="outlined" />
