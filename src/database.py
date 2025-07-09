@@ -233,27 +233,35 @@ class DatabaseManager:
             # Vérifier si l'article existe déjà
             existing = self.session.query(CachedArticle).filter_by(url=article['url']).first()
             
-            # Extraire les données selon le nouveau format
-            if 'content' in article and isinstance(article['content'], dict):
-                # Nouveau format avec structure content
-                summary = article['content'].get('summary', article.get('summary', ''))
-                category = article.get('domain', article.get('category', 'general'))
-                reliability = article.get('source_weight', article.get('reliability', 5))
-                domains = article.get('metadata', {}).get('technologies', article.get('domains', []))
-                if isinstance(domains, list):
-                    domains = domains[:5]  # Limiter à 5 technologies
-            else:
-                # Format classique
-                summary = article.get('summary', '')
-                category = article.get('category', article.get('domain', 'general'))
-                reliability = article.get('reliability', article.get('source_weight', 5))
+            # Extraire les données selon le nouveau format optimisé
+            summary = article.get('summary', '')
+            
+            # Nouveau format avec structure content_data
+            if 'content_data' in article:
+                if not summary:
+                    summary = article['content_data'].get('summary', '')
+            
+            # Prendre le domaine défini
+            category = article.get('domain', 'general')
+            
+            # Utiliser le relevance_score calculé
+            reliability = article.get('relevance_score', article.get('source_weight', 50))
+            
+            # Extraire les technologies des métadonnées
+            domains = []
+            if 'metadata' in article:
+                domains = article['metadata'].get('technologies', [])
+            if not domains:
                 domains = article.get('domains', [])
+            
+            if isinstance(domains, list):
+                domains = domains[:5]  # Limiter à 5 technologies
             
             if existing:
                 # Mettre à jour l'article existant
                 existing.title = article['title']
                 existing.summary = summary
-                existing.relevance_score = article.get('relevance_score', 0)
+                existing.relevance_score = reliability
                 existing.domain_matches = article.get('domain_matches', 0)
                 existing.scraped_at = article.get('scraped_at', datetime.now())
                 existing.cache_expires_at = cache_expiry
@@ -271,7 +279,7 @@ class DatabaseManager:
                     source_domains=json.dumps(domains),
                     published=article.get('published', datetime.now()),
                     summary=summary,
-                    relevance_score=article.get('relevance_score', 0),
+                    relevance_score=reliability,
                     domain_matches=article.get('domain_matches', 0),
                     scraped_at=article.get('scraped_at', datetime.now()),
                     cache_expires_at=cache_expiry

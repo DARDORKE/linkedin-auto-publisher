@@ -15,48 +15,49 @@ import {
   Alert,
   CircularProgress,
   LinearProgress,
-  Switch,
-  Tooltip,
 } from '@mui/material';
 import {
   Refresh,
   SelectAll,
   Clear,
   Send,
-  Storage,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import { domainApi, scrapeApi, Article } from '../services/api';
+
 
 export default function ManualScraping() {
   const queryClient = useQueryClient();
   const [selectedDomain, setSelectedDomain] = useState<string>('');
   const [selectedArticles, setSelectedArticles] = useState<number[]>([]);
-  const [forceRefresh, setForceRefresh] = useState(false);
   const [scrapedArticles, setScrapedArticles] = useState<Article[]>([]);
+  const [scrapingTime, setScrapingTime] = useState<number | null>(null);
 
   const { data: domainsData } = useQuery({
     queryKey: ['domains'],
     queryFn: () => domainApi.getDomains(),
   });
 
-  const { data: cacheData } = useQuery({
-    queryKey: ['cache', 'domains'],
-    queryFn: () => domainApi.getCacheByDomains(),
-  });
 
   const scrapeMutation = useMutation({
-    mutationFn: ({ domain, forceRefresh }: { domain: string; forceRefresh: boolean }) =>
-      scrapeApi.scrapeDomain(domain, forceRefresh),
+    mutationFn: ({ domain }: { domain: string }) => {
+      const startTime = Date.now();
+      return scrapeApi.scrapeDomain(domain, false).then(response => {
+        const endTime = Date.now();
+        setScrapingTime(endTime - startTime);
+        return response;
+      });
+    },
     onSuccess: (data) => {
       setScrapedArticles(data.data.articles);
       setSelectedArticles([]);
-      queryClient.invalidateQueries({ queryKey: ['cache'] });
-      const cacheInfo = data.data.from_cache ? ' (depuis le cache)' : '';
-      toast.success(`${data.data.total_count} articles trouvés${cacheInfo}`);
+      
+      const timeInfo = scrapingTime ? ` en ${scrapingTime}ms` : '';
+      toast.success(`${data.data.total_count} articles trouvés${timeInfo}`);
     },
     onError: () => {
       toast.error('Erreur lors du scraping');
+      setScrapingTime(null);
     },
   });
 
@@ -77,18 +78,19 @@ export default function ManualScraping() {
   });
 
   const domains = domainsData?.data.domains || {};
-  const domainCache = cacheData?.data || {};
 
   const handleDomainSelect = (domain: string) => {
     setSelectedDomain(domain);
     setSelectedArticles([]);
     setScrapedArticles([]);
+    setScrapingTime(null);
   };
 
   const handleScrape = () => {
     if (!selectedDomain) return;
-    scrapeMutation.mutate({ domain: selectedDomain, forceRefresh });
+    scrapeMutation.mutate({ domain: selectedDomain });
   };
+
 
   const handleArticleToggle = (index: number) => {
     setSelectedArticles(prev => 
@@ -112,7 +114,6 @@ export default function ManualScraping() {
   };
 
   const DomainCard = ({ domainKey, domain }: { domainKey: string; domain: any }) => {
-    const cacheInfo = domainCache[domainKey];
     const isSelected = selectedDomain === domainKey;
 
     return (
@@ -120,6 +121,7 @@ export default function ManualScraping() {
         sx={{ 
           border: isSelected ? '2px solid #0a66c2' : '1px solid #e0e0e0',
           backgroundColor: isSelected ? '#f0f8ff' : 'white',
+          position: 'relative',
         }}
       >
         <CardActionArea onClick={() => handleDomainSelect(domainKey)}>
@@ -128,30 +130,20 @@ export default function ManualScraping() {
               <Typography variant="h6" component="div">
                 {domain.name}
               </Typography>
-              {cacheInfo && cacheInfo.cached_count > 0 && (
-                <Tooltip title={`${cacheInfo.cached_count} articles en cache`}>
-                  <Chip
-                    icon={<Storage />}
-                    label={cacheInfo.cached_count}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                  />
-                </Tooltip>
-              )}
             </Stack>
             <Typography variant="body2" color="text.secondary">
               {domain.description}
             </Typography>
-            <Box
-              sx={{
-                width: 20,
-                height: 20,
-                borderRadius: '50%',
-                backgroundColor: domain.color,
-                mt: 1,
-              }}
-            />
+            <Stack direction="row" alignItems="center" spacing={1} mt={1}>
+              <Box
+                sx={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  backgroundColor: domain.color,
+                }}
+              />
+            </Stack>
           </CardContent>
         </CardActionArea>
       </Card>
@@ -207,6 +199,7 @@ export default function ManualScraping() {
         Scraping Manuel
       </Typography>
 
+
       {/* Étape 1: Sélection du domaine */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -220,24 +213,28 @@ export default function ManualScraping() {
               </Grid>
             ))}
           </Grid>
-          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={forceRefresh}
-                  onChange={(e) => setForceRefresh(e.target.checked)}
+          <Box sx={{ mt: 2 }}>
+            <Stack direction="row" spacing={2} alignItems="center" mb={2}>
+              {scrapingTime && (
+                <Chip
+                  label={`${scrapingTime}ms`}
+                  size="small"
+                  color="info"
+                  variant="outlined"
                 />
-              }
-              label="Forcer le refresh (ignorer le cache)"
-            />
-            <Button
-              variant="contained"
-              onClick={handleScrape}
-              disabled={!selectedDomain || scrapeMutation.isPending}
-              startIcon={scrapeMutation.isPending ? <CircularProgress size={20} /> : <Refresh />}
-            >
-              {scrapeMutation.isPending ? 'Scraping...' : 'Lancer le scraping'}
-            </Button>
+              )}
+            </Stack>
+            
+            <Stack direction="row" spacing={2}>
+              <Button
+                variant="contained"
+                onClick={handleScrape}
+                disabled={!selectedDomain || scrapeMutation.isPending}
+                startIcon={scrapeMutation.isPending ? <CircularProgress size={20} /> : <Refresh />}
+              >
+                {scrapeMutation.isPending ? 'Scraping...' : 'Lancer le scraping'}
+              </Button>
+            </Stack>
           </Box>
         </CardContent>
       </Card>

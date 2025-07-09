@@ -36,8 +36,8 @@ class FullStackDevScraper:
         self.domain_keywords = {
             'frontend': ['react', 'vue', 'angular', 'svelte', 'css', 'javascript', 'typescript', 
                         'nextjs', 'nuxtjs', 'tailwind', 'webpack', 'vite'],
-            'backend': ['nodejs', 'python', 'java', 'go', 'rust', 'api', 'database', 'docker', 
-                       'kubernetes', 'microservices', 'serverless', 'redis', 'postgresql'],
+            'backend': ['nodejs', 'python', 'java', 'go', 'golang', 'rust', 'php', 'laravel', 'symfony', 'api', 'database', 'docker', 
+                       'kubernetes', 'microservices', 'serverless', 'redis', 'postgresql', 'mysql', 'composer'],
             'ai': ['ai', 'ml', 'llm', 'gpt', 'transformer', 'neural', 'deep learning', 
                   'pytorch', 'tensorflow', 'langchain', 'huggingface', 'openai']
         }
@@ -56,15 +56,28 @@ class FullStackDevScraper:
                 {"name": "A List Apart", "url": "https://alistapart.com/main/feed/", "weight": 9},
             ],
             'backend': [
-                {"name": "Node.js Medium", "url": "https://medium.com/feed/the-node-js-collection", "weight": 9},
+                # Sources PHP (priorités)
+                {"name": "PHP.net News", "url": "https://www.php.net/news.rss", "weight": 10},
+                {"name": "Laravel News", "url": "https://laravel-news.com/feed", "weight": 9},
+                # Sources Golang (priorités)
                 {"name": "Go Dev Blog", "url": "https://go.dev/blog/feed.atom", "weight": 10},
+                {"name": "Golang Weekly", "url": "https://golangweekly.com/rss/", "weight": 9},
+                # Sources générales backend
+                {"name": "Docker Blog", "url": "https://www.docker.com/blog/feed/", "weight": 9},
+                {"name": "Real Python", "url": "https://realpython.com/atom.xml", "weight": 9},
+                # Sources supplémentaires (si limite augmentée)
+                {"name": "Symfony Blog", "url": "https://symfony.com/blog.rss", "weight": 9},
+                {"name": "Node.js Medium", "url": "https://medium.com/feed/the-node-js-collection", "weight": 9},
                 {"name": "Rust Blog", "url": "https://blog.rust-lang.org/feed.xml", "weight": 10},
                 {"name": "Django News", "url": "https://django-news.com/issues.rss", "weight": 9},
                 {"name": "AWS News", "url": "https://aws.amazon.com/about-aws/whats-new/recent/feed/", "weight": 8},
-                {"name": "Docker Blog", "url": "https://www.docker.com/blog/feed/", "weight": 9},
                 {"name": "Kubernetes Blog", "url": "https://kubernetes.io/feed.xml", "weight": 9},
-                {"name": "Real Python", "url": "https://realpython.com/atom.xml", "weight": 9},
                 {"name": "Node Weekly", "url": "https://nodeweekly.com/rss/", "weight": 9},
+                {"name": "PHP The Right Way", "url": "https://www.phptherightway.com/feed.xml", "weight": 8},
+                {"name": "SitePoint PHP", "url": "https://www.sitepoint.com/php/feed/", "weight": 8},
+                {"name": "Go Time Podcast", "url": "https://changelog.com/gotime/feed", "weight": 8},
+                {"name": "Gopher Academy", "url": "https://blog.gopheracademy.com/index.xml", "weight": 8},
+                {"name": "Dave Cheney", "url": "https://dave.cheney.net/feed", "weight": 8},
             ],
             'ai': [
                 {"name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/", "weight": 10},
@@ -97,12 +110,12 @@ class FullStackDevScraper:
         # Collecter les articles par domaine
         domain_articles = {}
         
-        # Articles par domaine souhaités
+        # Articles par domaine souhaités - augmenté pour couvrir toutes les technologies
         articles_per_domain = {
-            'frontend': max(10, max_articles // 3),
-            'backend': max(10, max_articles // 3),
-            'ai': max(10, max_articles // 3),
-            'general': max(5, max_articles // 6)
+            'frontend': max(15, max_articles // 3),
+            'backend': max(30, max_articles // 2),  # Augmenté pour PHP, Golang, Python, Node.js, etc.
+            'ai': max(15, max_articles // 3),
+            'general': max(10, max_articles // 6)
         }
         
         # Scraper chaque domaine
@@ -123,7 +136,7 @@ class FullStackDevScraper:
         
         return final_articles
     
-    def scrape_domain_sources(self, domain: str, max_articles: int = 50, use_cache: bool = True) -> List[Dict]:
+    def scrape_domain_sources(self, domain: str, max_articles: int = 60, use_cache: bool = True) -> List[Dict]:
         """Scrape spécifiquement un domaine"""
         if domain not in self.sources:
             logger.error(f"Domain {domain} not supported")
@@ -134,25 +147,14 @@ class FullStackDevScraper:
     
     def _scrape_domain(self, domain: str, max_articles: int, use_cache: bool) -> List[Dict]:
         """Scrape interne pour un domaine"""
-        # Vérifier le cache
-        if use_cache:
-            source_names = [s['name'] for s in self.sources.get(domain, [])]
-            cached_articles = self.db.get_cached_articles(source_names=source_names)
-            
-            # Filtrer les articles récents
-            fresh_cached = [a for a in cached_articles 
-                          if (datetime.now() - a['published']).days < 3]
-            
-            if len(fresh_cached) >= max_articles:
-                logger.info(f"Using {len(fresh_cached)} cached articles for {domain}")
-                return self._process_and_score(fresh_cached, domain)[:max_articles]
+        logger.info(f"Scraping {domain} domain - cache disabled, always fetching fresh articles")
         
         # Scraper les sources
         all_articles = []
         sources = self.sources.get(domain, [])
         
-        # Limiter le nombre de sources pour la performance
-        sources_to_scrape = sources[:6]
+        # Utiliser toutes les sources disponibles
+        sources_to_scrape = sources
         
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_to_source = {
@@ -171,9 +173,8 @@ class FullStackDevScraper:
         # Traiter et scorer
         processed = self._process_and_score(all_articles, domain)
         
-        # Sauvegarder en cache
-        if use_cache and processed:
-            self.db.save_articles_to_cache(processed[:max_articles], self.cache_duration_hours)
+        # Cache désactivé - pas de sauvegarde
+        logger.info(f"Cache disabled - not saving {len(processed)} articles")
         
         return processed[:max_articles]
     
@@ -192,7 +193,7 @@ class FullStackDevScraper:
                 return []
             
             articles = []
-            for entry in feed.entries[:8]:  # Max 8 articles par source
+            for entry in feed.entries[:12]:  # Max 12 articles par source pour plus de diversité
                 try:
                     article = {
                         'title': entry.get('title', '').strip(),
@@ -200,7 +201,7 @@ class FullStackDevScraper:
                         'source': source['name'],
                         'source_weight': source['weight'],
                         'published': self._parse_date(entry.get('published', entry.get('updated', ''))),
-                        'summary': self._clean_text(entry.get('summary', ''))[:600],
+                        'summary': self._clean_text(self._remove_html_tags(entry.get('summary', '')))[:600],
                         'content': '',  # Sera rempli plus tard si nécessaire
                         'scraped_at': datetime.now(),
                         'tags': []
@@ -236,7 +237,7 @@ class FullStackDevScraper:
             return []
     
     def _process_and_score(self, articles: List[Dict], domain: str) -> List[Dict]:
-        """Traite et score les articles"""
+        """Traite et score les articles avec équilibrage par technologie"""
         # Dédupliquer
         unique_articles = self._deduplicate(articles)
         
@@ -248,18 +249,20 @@ class FullStackDevScraper:
             # Score de source
             score += article.get('source_weight', 5) * 3
             
-            # Score de fraîcheur
+            # Score de fraîcheur (renforcé pour prioriser les articles récents)
             age_hours = (datetime.now() - article['published']).total_seconds() / 3600
-            if age_hours < 12:
-                score += 30
+            if age_hours < 6:
+                score += 50  # Très récent
+            elif age_hours < 12:
+                score += 40  # Récent
             elif age_hours < 24:
-                score += 25
+                score += 35  # Jour 1
             elif age_hours < 48:
-                score += 20
+                score += 30  # Jour 2
             elif age_hours < 72:
-                score += 15
+                score += 25  # Jour 3
             else:
-                score += 5
+                score += 5   # Plus ancien
             
             # Score de pertinence
             text = (article['title'] + ' ' + article.get('summary', '')).lower()
@@ -281,14 +284,213 @@ class FullStackDevScraper:
             
             article['relevance_score'] = score
             article['domain'] = domain
+            
+            # Détecter la technologie principale
+            article['tech_category'] = self._detect_tech_category(article, domain)
         
-        # Trier par score
-        unique_articles.sort(key=lambda x: x['relevance_score'], reverse=True)
+        # Équilibrer par technologie au lieu de trier seulement par score
+        balanced_articles = self._balance_by_technology(unique_articles, domain)
         
         # Enrichir les top articles
-        self._enrich_top_articles(unique_articles[:10])
+        self._enrich_top_articles(balanced_articles[:15])
         
-        return unique_articles
+        return balanced_articles
+    
+    def _detect_tech_category(self, article: Dict, domain: str) -> str:
+        """Détecte la catégorie technologique d'un article"""
+        text = (article.get('title', '') + ' ' + article.get('summary', '') + ' ' + article.get('source', '')).lower()
+        
+        if domain == 'backend':
+            # Détecter les technologies backend
+            if any(kw in text for kw in ['php', 'laravel', 'symfony', 'composer']):
+                return 'php'
+            elif any(kw in text for kw in ['golang', 'go ', 'gopher']):
+                return 'golang'
+            elif any(kw in text for kw in ['python', 'django', 'flask', 'fastapi']):
+                return 'python'
+            elif any(kw in text for kw in ['node.js', 'nodejs', 'javascript', 'express']):
+                return 'nodejs'
+            elif any(kw in text for kw in ['rust', 'cargo']):
+                return 'rust'
+            elif any(kw in text for kw in ['java', 'spring', 'maven']):
+                return 'java'
+            elif any(kw in text for kw in ['docker', 'kubernetes', 'container']):
+                return 'devops'
+            elif any(kw in text for kw in ['database', 'postgresql', 'mysql', 'redis']):
+                return 'database'
+            else:
+                return 'general'
+        
+        elif domain == 'frontend':
+            if any(kw in text for kw in ['react', 'jsx', 'nextjs']):
+                return 'react'
+            elif any(kw in text for kw in ['vue', 'nuxt']):
+                return 'vue'
+            elif any(kw in text for kw in ['angular', 'typescript']):
+                return 'angular'
+            elif any(kw in text for kw in ['css', 'sass', 'tailwind']):
+                return 'css'
+            else:
+                return 'general'
+        
+        return 'general'
+    
+    def _filter_fresh_articles(self, articles: List[Dict], max_age_days: int = 3) -> List[Dict]:
+        """Filtre les articles récents (moins de X jours)"""
+        fresh_articles = []
+        max_age_seconds = max_age_days * 24 * 3600
+        current_time = datetime.now()
+        
+        for article in articles:
+            published = article.get('published')
+            if not published:
+                continue
+                
+            # Convertir en datetime si c'est une string
+            if isinstance(published, str):
+                try:
+                    from dateutil import parser
+                    published = parser.parse(published).replace(tzinfo=None)
+                except Exception as e:
+                    logger.debug(f"Could not parse date '{published}': {e}")
+                    continue
+            elif not isinstance(published, datetime):
+                continue
+                
+            age_seconds = (current_time - published).total_seconds()
+            if age_seconds <= max_age_seconds:
+                fresh_articles.append(article)
+                # Log pour debug
+                age_hours = age_seconds / 3600
+                logger.debug(f"Fresh article: {article.get('title', 'NO TITLE')[:50]}... (age: {age_hours:.1f}h)")
+        
+        return fresh_articles
+    
+    def _get_freshness_score(self, article: Dict) -> float:
+        """Calcule un score de fraîcheur pour le tri"""
+        published = article.get('published')
+        if not published:
+            return 0.0
+            
+        # Convertir en datetime si nécessaire
+        if isinstance(published, str):
+            try:
+                from dateutil import parser
+                published = parser.parse(published).replace(tzinfo=None)
+            except:
+                return 0.0
+        elif not isinstance(published, datetime):
+            return 0.0
+        
+        # Calculer l'âge en heures
+        age_hours = (datetime.now() - published).total_seconds() / 3600
+        
+        # Score inversé : plus c'est récent, plus le score est élevé
+        if age_hours < 6:
+            return 100.0
+        elif age_hours < 12:
+            return 90.0
+        elif age_hours < 24:
+            return 80.0
+        elif age_hours < 48:
+            return 70.0
+        elif age_hours < 72:
+            return 60.0
+        elif age_hours < 168:  # 7 jours
+            return 40.0
+        else:
+            return 20.0
+    
+    def _balance_by_technology(self, articles: List[Dict], domain: str) -> List[Dict]:
+        """Équilibre la sélection d'articles par technologie pour 20 articles finaux"""
+        if domain != 'backend':
+            # Pour les autres domaines, garder le tri par score
+            return sorted(articles, key=lambda x: x['relevance_score'], reverse=True)
+        
+        # PRIORITÉ 1: Équilibrage technologique d'abord
+        # Grouper par technologie (tous les articles)
+        tech_groups = {}
+        for article in articles:
+            tech = article.get('tech_category', 'general')
+            if tech not in tech_groups:
+                tech_groups[tech] = []
+            tech_groups[tech].append(article)
+        
+        # Trier chaque groupe par score DE FRAÎCHEUR d'abord, puis par pertinence
+        for tech in tech_groups:
+            tech_groups[tech].sort(key=lambda x: (
+                self._get_freshness_score(x),  # Score de fraîcheur en premier
+                x['relevance_score']           # Score de pertinence en second
+            ), reverse=True)
+        
+        # Sélection équilibrée pour 20 articles finaux
+        balanced_articles = []
+        target_final_count = 20
+        
+        # Prioriser les technologies principales
+        priority_techs = ['php', 'golang', 'python', 'nodejs', 'rust', 'java']
+        
+        # Calculer la distribution équitable pour 20 articles
+        available_techs = [tech for tech in priority_techs if tech in tech_groups and len(tech_groups[tech]) > 0]
+        
+        if len(available_techs) == 0:
+            # Fallback si aucune tech prioritaire
+            fallback_articles = sorted(articles, key=lambda x: (
+                self._get_freshness_score(x),
+                x['relevance_score']
+            ), reverse=True)[:target_final_count]
+            logger.warning(f"Using fallback selection with {len(fallback_articles)} articles")
+            return fallback_articles
+        
+        # Distribuer équitablement les 20 articles
+        base_per_tech = target_final_count // len(available_techs)  # Base par technologie
+        extra_slots = target_final_count % len(available_techs)     # Slots supplémentaires
+        
+        tech_allocations = {}
+        for i, tech in enumerate(available_techs):
+            allocation = base_per_tech
+            if i < extra_slots:  # Distribuer les slots supplémentaires
+                allocation += 1
+            tech_allocations[tech] = min(allocation, len(tech_groups[tech]))
+        
+        # Sélectionner les articles selon les allocations (les plus frais de chaque tech)
+        for tech in available_techs:
+            if tech in tech_groups:
+                selected_count = tech_allocations[tech]
+                selected_articles = tech_groups[tech][:selected_count]
+                balanced_articles.extend(selected_articles)
+                
+                # Log avec info fraîcheur
+                if selected_articles:
+                    avg_freshness = sum(self._get_freshness_score(a) for a in selected_articles) / len(selected_articles)
+                    logger.info(f"Selected {selected_count} articles for {tech} (avg freshness: {avg_freshness:.1f})")
+        
+        # Si on n'a pas assez d'articles, compléter avec devops/database/general
+        if len(balanced_articles) < target_final_count:
+            remaining_slots = target_final_count - len(balanced_articles)
+            other_articles = []
+            
+            for tech in ['devops', 'database', 'general']:
+                if tech in tech_groups:
+                    other_articles.extend(tech_groups[tech])
+            
+            # Trier par fraîcheur puis pertinence
+            other_articles.sort(key=lambda x: (
+                self._get_freshness_score(x),
+                x['relevance_score']
+            ), reverse=True)
+            balanced_articles.extend(other_articles[:remaining_slots])
+        
+        # S'assurer qu'on a exactement 20 articles
+        final_selection = balanced_articles[:target_final_count]
+        
+        # Log final avec stats de fraîcheur
+        if final_selection:
+            avg_final_freshness = sum(self._get_freshness_score(a) for a in final_selection) / len(final_selection)
+            fresh_count = sum(1 for a in final_selection if self._get_freshness_score(a) >= 60.0)  # < 72h
+            logger.info(f"Balanced selection: {len(final_selection)} articles (avg freshness: {avg_final_freshness:.1f}, {fresh_count} recent)")
+        
+        return final_selection
     
     def _enrich_top_articles(self, articles: List[Dict]):
         """Enrichit les meilleurs articles avec du contenu"""
@@ -356,6 +558,9 @@ class FullStackDevScraper:
         prepared = []
         
         for article in articles:
+            # Nettoyer le summary
+            clean_summary = self._clean_text(self._remove_html_tags(article.get('summary', '')))
+            
             prepared_article = {
                 'id': hashlib.sha256(article['url'].encode()).hexdigest()[:12],
                 'title': article['title'],
@@ -365,8 +570,14 @@ class FullStackDevScraper:
                 'relevance_score': article.get('relevance_score', 0),
                 'domain': article.get('domain', 'general'),
                 
-                'content': {
-                    'summary': article.get('summary', ''),
+                # Champs compatibles avec le frontend
+                'summary': clean_summary,
+                'content': article.get('content', ''),
+                'domains': [article.get('domain', 'general')],  # Compatible avec l'interface
+                
+                # Métadonnées enrichies
+                'content_data': {
+                    'summary': clean_summary,
                     'full_text': article.get('content', ''),
                     'extraction_quality': article.get('extraction_quality', 'unknown')
                 },
@@ -400,6 +611,19 @@ class FullStackDevScraper:
         
         return unique
     
+    def _remove_html_tags(self, text: str) -> str:
+        """Supprime les balises HTML"""
+        if not text:
+            return ""
+        
+        # Supprimer les balises HTML
+        text = re.sub(r'<[^>]+>', '', text)
+        # Décoder les entités HTML courantes
+        text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+        text = text.replace('&quot;', '"').replace('&#39;', "'").replace('&nbsp;', ' ')
+        
+        return text
+
     def _clean_text(self, text: str) -> str:
         """Nettoie le texte"""
         if not text:
