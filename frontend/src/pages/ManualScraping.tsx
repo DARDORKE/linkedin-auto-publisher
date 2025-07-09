@@ -15,15 +15,21 @@ import {
   Alert,
   CircularProgress,
   LinearProgress,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   Refresh,
   SelectAll,
   Clear,
   Send,
+  Visibility,
+  OpenInNew,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import { domainApi, scrapeApi, Article } from '../services/api';
+import LoadingScreen from '../components/LoadingScreen';
+import ArticleModal from '../components/ArticleModal';
 
 
 export default function ManualScraping() {
@@ -32,6 +38,8 @@ export default function ManualScraping() {
   const [selectedArticles, setSelectedArticles] = useState<number[]>([]);
   const [scrapedArticles, setScrapedArticles] = useState<Article[]>([]);
   const [scrapingTime, setScrapingTime] = useState<number | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
 
   const { data: domainsData } = useQuery({
     queryKey: ['domains'],
@@ -113,6 +121,16 @@ export default function ManualScraping() {
     generateMutation.mutate({ articles, domain: selectedDomain });
   };
 
+  const handleOpenArticle = (article: Article) => {
+    setSelectedArticle(article);
+    setIsArticleModalOpen(true);
+  };
+
+  const handleCloseArticle = () => {
+    setSelectedArticle(null);
+    setIsArticleModalOpen(false);
+  };
+
   const DomainCard = ({ domainKey, domain }: { domainKey: string; domain: any }) => {
     const isSelected = selectedDomain === domainKey;
 
@@ -157,27 +175,27 @@ export default function ManualScraping() {
         backgroundColor: selected ? '#f0f8ff' : 'white',
       }}
     >
-      <CardActionArea onClick={() => handleArticleToggle(index)}>
-        <CardContent>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={selected}
-                  onChange={() => handleArticleToggle(index)}
-                />
-              }
-              label=""
-              sx={{ mr: 1 }}
-            />
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                {article.title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                {article.summary ? article.summary.substring(0, 150) : 'Aucun résumé disponible'}...
-              </Typography>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={selected}
+                onChange={() => handleArticleToggle(index)}
+              />
+            }
+            label=""
+            sx={{ mr: 1 }}
+          />
+          <Box sx={{ flex: 1 }} onClick={() => handleArticleToggle(index)}>
+            <Typography variant="subtitle2" gutterBottom>
+              {article.title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              {article.summary ? article.summary.substring(0, 150) : 'Aucun résumé disponible'}...
+            </Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Stack direction="row" spacing={1}>
                 <Chip label={article.source} size="small" color="primary" variant="outlined" />
                 <Chip 
                   label={`Score: ${Math.round(article.relevance_score)}`} 
@@ -186,10 +204,34 @@ export default function ManualScraping() {
                   variant="outlined"
                 />
               </Stack>
-            </Box>
-          </Stack>
-        </CardContent>
-      </CardActionArea>
+              <Stack direction="row" spacing={1}>
+                <Tooltip title="Voir le contenu">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenArticle(article);
+                    }}
+                  >
+                    <Visibility />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Ouvrir l'article original">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(article.url, '_blank');
+                    }}
+                  >
+                    <OpenInNew />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Stack>
+          </Box>
+        </Stack>
+      </CardContent>
     </Card>
   );
 
@@ -314,6 +356,26 @@ export default function ManualScraping() {
           </CardContent>
         </Card>
       )}
+
+      <LoadingScreen
+        open={scrapeMutation.isPending}
+        title="Scraping en cours..."
+        description="Récupération des articles depuis les sources RSS"
+        showProgress={false}
+      />
+
+      <LoadingScreen
+        open={generateMutation.isPending}
+        title="Génération en cours..."
+        description="Création du post LinkedIn à partir des articles sélectionnés"
+        showProgress={false}
+      />
+
+      <ArticleModal
+        open={isArticleModalOpen}
+        onClose={handleCloseArticle}
+        article={selectedArticle}
+      />
     </Box>
   );
 }

@@ -190,7 +190,7 @@ def get_domains():
         },
         'backend': {
             'name': 'Développement Backend', 
-            'description': 'APIs, Node.js, Python, Java, bases de données',
+            'description': 'APIs, Node.js, Python, Go, PHP, Java, bases de données',
             'color': '#68D391'
         },
         'ai': {
