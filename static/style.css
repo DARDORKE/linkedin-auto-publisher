@@ -73,9 +73,34 @@ h1 {
 
 .post-content {
     margin-bottom: 15px;
-    white-space: pre-wrap;
     font-size: 14px;
     line-height: 1.8;
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e5e5e5;
+    padding: 15px;
+    border-radius: 6px;
+    background: #fafafa;
+}
+
+.post-content strong {
+    color: #0a66c2;
+    font-weight: 600;
+}
+
+.post-content em {
+    color: #666;
+    font-style: italic;
+}
+
+.post-content a {
+    color: #0a66c2;
+    text-decoration: none;
+    border-bottom: 1px solid #0a66c2;
+}
+
+.post-content a:hover {
+    background-color: #e7f3ff;
 }
 
 .post-meta {
@@ -85,6 +110,15 @@ h1 {
     margin-bottom: 15px;
     font-size: 12px;
     color: #666;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.post-meta span {
+    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: 500;
 }
 
 .hashtags {

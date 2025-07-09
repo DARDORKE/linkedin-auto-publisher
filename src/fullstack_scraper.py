@@ -670,76 +670,153 @@ class FullStackDevScraper:
         return tech_articles
     
     def _deduplicate_articles(self, articles: List[Dict]) -> List[Dict]:
-        seen_titles = set()
+        """Déduplication intelligente basée sur le contenu et la similarité"""
         unique_articles = []
+        seen_signatures = set()
         
         for article in articles:
-            normalized_title = re.sub(r'[^\w\s]', '', article['title'].lower())
+            # Normalisation avancée du titre
+            title = article['title'].lower()
             
-            if normalized_title not in seen_titles:
-                seen_titles.add(normalized_title)
+            # Supprimer les mots vides et normaliser
+            stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'how', 'why', 'what', 'when', 'where'}
+            title_words = re.findall(r'\b\w+\b', title)
+            significant_words = [w for w in title_words if w not in stop_words and len(w) > 2]
+            
+            # Créer une signature basée sur les mots significatifs
+            if len(significant_words) >= 3:
+                # Utiliser les 3-4 mots les plus significatifs
+                signature = ' '.join(sorted(significant_words[:4]))
+            else:
+                # Fallback sur titre normalisé complet
+                signature = re.sub(r'[^\w\s]', '', title)
+            
+            # Vérifier la similarité avec les articles déjà sélectionnés
+            is_duplicate = False
+            for seen_sig in seen_signatures:
+                # Calculer la similarité
+                common_words = set(signature.split()) & set(seen_sig.split())
+                if len(common_words) >= min(3, len(signature.split()) * 0.7):
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                seen_signatures.add(signature)
                 unique_articles.append(article)
+            else:
+                logger.debug(f"Duplicate detected: {article['title'][:50]}...")
                 
         return unique_articles
     
     def _score_tech_articles(self, articles: List[Dict]) -> List[Dict]:
-        """Score adapté pour frontend + backend + IA"""
+        """Score optimisé pour la qualité et pertinence du contenu"""
         for article in articles:
             score = 0
             
-            # Score de base par fiabilité
-            score += article['reliability'] * 6
+            # Score de base par fiabilité (augmenté pour privilégier les sources fiables)
+            reliability = article['reliability']
+            score += reliability * 8  # Augmenté de 6 à 8
             
-            # Score par fraîcheur (privilégier fortement les articles récents)
-            age_hours = (datetime.now() - article.get('published', datetime.now())).total_seconds() / 3600
-            if age_hours < 6:  # Moins de 6 heures
-                score += 35
-            elif age_hours < 24:  # Moins de 24 heures
-                score += 25
-            elif age_hours < 48:  # Moins de 2 jours
-                score += 15
-            elif age_hours < 72:  # Moins de 3 jours
-                score += 8
-            else:  # Plus de 3 jours (ne devrait pas arriver avec le filtre)
+            # Score par fraîcheur (courbe optimisée)
+            published_date = article.get('published', datetime.now())
+            if isinstance(published_date, str):
+                published_date = self._parse_date(published_date)
+            age_hours = (datetime.now() - published_date).total_seconds() / 3600
+            if age_hours < 3:  # Super récent (moins de 3h)
+                score += 50
+            elif age_hours < 12:  # Très récent (moins de 12h)
+                score += 40
+            elif age_hours < 24:  # Récent (moins de 24h)
+                score += 30
+            elif age_hours < 48:  # Assez récent (moins de 2 jours)
+                score += 20
+            elif age_hours < 72:  # Limite (moins de 3 jours)
+                score += 10
+            else:
                 score += 0
             
-            # Score par domaines techniques
+            # Score par domaines techniques (amélioré)
             text_content = (article['title'] + ' ' + article.get('summary', '')).lower()
+            domain_matches = 0
             
             for domain, keywords in self.tech_keywords.items():
                 domain_score = 0
+                
+                # Score pondéré par importance des mots-clés
                 for keyword in keywords['high']:
                     if keyword in text_content:
-                        domain_score += 15
+                        domain_score += 20  # Augmenté de 15 à 20
+                        domain_matches += 1
+                        
                 for keyword in keywords['medium']:
                     if keyword in text_content:
-                        domain_score += 10
+                        domain_score += 12  # Augmenté de 10 à 12
+                        domain_matches += 1
+                        
                 for keyword in keywords['tools']:
                     if keyword in text_content:
-                        domain_score += 5
+                        domain_score += 6   # Augmenté de 5 à 6
                 
-                # Limiter le score par domaine pour éviter la sur-pondération
-                score += min(domain_score, 30)
+                # Limiter le score par domaine mais permettre plus de variation
+                score += min(domain_score, 40)  # Augmenté de 30 à 40
             
-            # Bonus pour sources officielles
-            official_sources = ['OpenAI Blog', 'Google AI Blog', 'React Blog', 'Node.js Blog', 'Go Dev Blog', 'Rust Blog']
-            if article['source'] in official_sources:
+            # Bonus pour diversité technologique (articles couvrant plusieurs domaines)
+            if domain_matches >= 3:
                 score += 25
+            elif domain_matches >= 2:
+                score += 15
             
-            # Bonus pour multi-domaines
-            if len(article.get('relevant_domains', [])) > 1:
-                score += 10
+            # Bonus pour sources premium (élargi)
+            premium_sources = [
+                'OpenAI Blog', 'Google AI Blog', 'React Blog', 'Node.js Blog', 'Go Dev Blog', 'Rust Blog',
+                'Hugging Face Blog', 'DeepMind Blog', 'Meta AI Blog', 'MIT CSAIL News', 'Stanford AI Lab',
+                'MIT Technology Review', 'IEEE Spectrum', 'Spring Blog', 'Django News'
+            ]
+            if article['source'] in premium_sources:
+                score += 30  # Augmenté de 25 à 30
             
-            # Bonus HackerNews
+            # Bonus pour sources académiques/recherche
+            academic_sources = ['MIT CSAIL News', 'Stanford AI Lab', 'Papers With Code', 'MIT Technology Review', 'IEEE Spectrum']
+            if article['source'] in academic_sources:
+                score += 20
+            
+            # Bonus pour articles multi-domaines
+            relevant_domains = article.get('relevant_domains', [])
+            if len(relevant_domains) > 1:
+                score += 15  # Augmenté de 10 à 15
+            
+            # Bonus HackerNews optimisé
             if 'hn_score' in article:
-                score += min(article['hn_score'] / 5, 20)
+                hn_score = article['hn_score']
+                if hn_score >= 100:
+                    score += 30
+                elif hn_score >= 50:
+                    score += 20
+                elif hn_score >= 20:
+                    score += 10
+                else:
+                    score += 5
+            
+            # Malus pour titres trop courts ou peu informatifs
+            title_length = len(article['title'])
+            if title_length < 20:
+                score -= 10
+            elif title_length > 120:
+                score -= 5
+            
+            # Bonus pour résumé détaillé
+            summary_length = len(article.get('summary', ''))
+            if summary_length > 200:
+                score += 10
+            elif summary_length > 100:
+                score += 5
             
             article['relevance_score'] = max(0, score)
             
         return articles
     
     def _balance_domains(self, articles: List[Dict], max_articles: int) -> List[Dict]:
-        """Équilibre la représentation des trois domaines"""
+        """Équilibrage optimisé pour la qualité par domaine"""
         articles_by_domain = {'frontend': [], 'backend': [], 'ai': [], 'multi': []}
         
         for article in articles:
@@ -753,7 +830,7 @@ class FullStackDevScraper:
             elif 'frontend' in domains:
                 articles_by_domain['frontend'].append(article)
             else:
-                # Assigner selon la catégorie de la source
+                # Assigner selon la catégorie de la source avec priorité qualité
                 source_category = article.get('category', '')
                 if source_category in ['ai']:
                     articles_by_domain['ai'].append(article)
@@ -762,21 +839,58 @@ class FullStackDevScraper:
                 else:
                     articles_by_domain['frontend'].append(article)
         
-        # Équilibrer : 30% frontend, 30% backend, 25% IA, 15% multi-domaines
+        # Équilibrage adaptatif basé sur la qualité disponible
         balanced = []
-        target_frontend = max(1, int(max_articles * 0.30))
-        target_backend = max(1, int(max_articles * 0.30))
-        target_ai = max(1, int(max_articles * 0.25))
-        target_multi = max(1, max_articles - target_frontend - target_backend - target_ai)
         
-        # Trier chaque domaine par score
+        # Trier chaque domaine par score de pertinence
         for domain in articles_by_domain:
             articles_by_domain[domain].sort(key=lambda x: x['relevance_score'], reverse=True)
         
-        balanced.extend(articles_by_domain['frontend'][:target_frontend])
-        balanced.extend(articles_by_domain['backend'][:target_backend])
-        balanced.extend(articles_by_domain['ai'][:target_ai])
-        balanced.extend(articles_by_domain['multi'][:target_multi])
+        # Répartition dynamique selon le contenu disponible
+        domain_counts = {k: len(v) for k, v in articles_by_domain.items()}
+        total_available = sum(domain_counts.values())
+        
+        if total_available == 0:
+            return []
+        
+        # Assurer un minimum de qualité par domaine
+        min_score_threshold = 50  # Score minimum pour être sélectionné
+        
+        # Calculer les quotas adaptatifs
+        base_quota = max_articles // 4  # Base de 25% par domaine principal
+        remaining = max_articles
+        
+        # Priorité aux domaines avec du contenu de qualité
+        for domain in ['ai', 'backend', 'frontend', 'multi']:
+            quality_articles = [a for a in articles_by_domain[domain] if a['relevance_score'] >= min_score_threshold]
+            
+            if domain == 'multi':
+                # Articles multi-domaines : 15% minimum, 25% maximum
+                quota = min(len(quality_articles), max(int(max_articles * 0.15), int(max_articles * 0.25)))
+            else:
+                # Domaines spécialisés : équilibré selon disponibilité
+                available_count = len(quality_articles)
+                if available_count == 0:
+                    quota = 0
+                elif available_count < base_quota:
+                    quota = available_count
+                else:
+                    quota = min(base_quota + 2, available_count)  # +2 pour favoriser la diversité
+            
+            selected = quality_articles[:quota]
+            balanced.extend(selected)
+            remaining -= len(selected)
+        
+        # Compléter avec les meilleurs articles restants si besoin
+        if remaining > 0:
+            all_remaining = []
+            for domain_articles in articles_by_domain.values():
+                for article in domain_articles:
+                    if article not in balanced and article['relevance_score'] >= min_score_threshold:
+                        all_remaining.append(article)
+            
+            all_remaining.sort(key=lambda x: x['relevance_score'], reverse=True)
+            balanced.extend(all_remaining[:remaining])
         
         return balanced
     

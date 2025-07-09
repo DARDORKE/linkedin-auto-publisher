@@ -54,12 +54,13 @@ function displayPosts(posts, container, type) {
     container.innerHTML = posts.map(post => `
         <div class="post-card" data-id="${post.id}">
             <div class="post-meta">
-                <span>Style: ${post.style || 'N/A'}</span>
+                <span>Domaine: ${post.domain_name || post.style || 'N/A'}</span>
+                <span>Sources: ${post.sources_count || 0}</span>
                 <span>Généré le: ${new Date(post.generated_at).toLocaleDateString('fr-FR')}</span>
             </div>
-            <div class="post-content">${escapeHtml(post.content)}</div>
+            <div class="post-content">${formatPostContent(post.content)}</div>
             <div class="hashtags">
-                ${post.hashtags.map(tag => `<span class="hashtag">${tag}</span>`).join('')}
+                ${formatHashtags(post.hashtags)}
             </div>
             <div class="post-actions">
                 ${type === 'pending' ? 
@@ -181,6 +182,50 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function formatPostContent(content) {
+    if (!content) return '';
+    
+    // Convertir le markdown en HTML basique pour l'affichage
+    let formatted = escapeHtml(content);
+    
+    // Convertir les sauts de ligne en <br>
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Convertir les liens markdown [text](url) en liens HTML
+    formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    
+    // Mettre en gras les textes entre **
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // Mettre en italique les textes entre *
+    formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    
+    // Convertir les listes avec bullet points
+    formatted = formatted.replace(/^• /gm, '&bull; ');
+    formatted = formatted.replace(/^- /gm, '&bull; ');
+    
+    return formatted;
+}
+
+function formatHashtags(hashtags) {
+    if (!hashtags) return '';
+    
+    // Si c'est déjà un string (nouveau format), le diviser en tags
+    if (typeof hashtags === 'string') {
+        return hashtags.split(' ')
+            .filter(tag => tag.trim().startsWith('#'))
+            .map(tag => `<span class="hashtag">${escapeHtml(tag.trim())}</span>`)
+            .join(' ');
+    }
+    
+    // Si c'est un array (ancien format), le traiter normalement
+    if (Array.isArray(hashtags)) {
+        return hashtags.map(tag => `<span class="hashtag">${escapeHtml(tag)}</span>`).join(' ');
+    }
+    
+    return '';
 }
 
 // Modal close handler

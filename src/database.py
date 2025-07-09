@@ -21,12 +21,17 @@ class Post(Base):
     variation_index = Column(Integer)
     
     def to_dict(self):
+        source_articles = json.loads(self.source_articles) if self.source_articles else []
+        hashtags_list = json.loads(self.hashtags) if self.hashtags else []
+        
         return {
             'id': self.id,
             'content': self.content,
             'style': self.style,
-            'hashtags': json.loads(self.hashtags) if self.hashtags else [],
-            'source_articles': json.loads(self.source_articles) if self.source_articles else [],
+            'domain_name': self.style,  # Compatibilité avec nouveau format
+            'hashtags': hashtags_list,
+            'source_articles': source_articles,
+            'sources_count': len(set(article.get('source', '') for article in source_articles)) if source_articles else 0,
             'generated_at': self.generated_at.isoformat() if self.generated_at else None,
             'approved': self.approved,
             'published': self.published,
@@ -53,10 +58,19 @@ class DatabaseManager:
             }
             serializable_articles.append(serializable_article)
         
+        # Gérer les hashtags en string ou en array
+        hashtags = post_data.get('hashtags', [])
+        if isinstance(hashtags, str):
+            # Nouveau format: string avec hashtags séparés par espaces
+            hashtags_list = [tag.strip() for tag in hashtags.split() if tag.strip().startswith('#')]
+        else:
+            # Ancien format: array
+            hashtags_list = hashtags
+        
         post = Post(
             content=post_data['content'],
-            style=post_data.get('style'),
-            hashtags=json.dumps(post_data.get('hashtags', [])),
+            style=post_data.get('style') or post_data.get('domain_name'),
+            hashtags=json.dumps(hashtags_list),
             source_articles=json.dumps(serializable_articles),
             generated_at=post_data.get('generated_at', datetime.now()),
             variation_index=post_data.get('variation_index')
