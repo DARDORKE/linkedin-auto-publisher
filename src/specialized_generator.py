@@ -484,19 +484,39 @@ Rédige l'article généraliste tech:
             'key_companies': [],
             'article_types': [],
             'urgency_level': 'normal',
-            'technical_depth': 'medium'
+            'technical_depth': 'medium',
+            'content_insights': [],
+            'temporal_context': 'current',
+            'key_themes': []
         }
         
         # Analyser les technologies tendances
         tech_mentions = {}
         company_mentions = {}
+        theme_mentions = {}
         
-        companies = ['google', 'microsoft', 'openai', 'anthropic', 'meta', 'apple', 'amazon', 'netflix', 'uber', 'spotify']
+        companies = ['google', 'microsoft', 'openai', 'anthropic', 'meta', 'apple', 'amazon', 'netflix', 'uber', 'spotify', 'github', 'docker']
+        
+        # Thèmes techniques importants
+        themes = {
+            'performance': ['performance', 'speed', 'optimization', 'faster', 'efficient'],
+            'security': ['security', 'vulnerability', 'breach', 'attack', 'protection'],
+            'scalability': ['scale', 'scalable', 'scalability', 'distributed', 'microservices'],
+            'ai_integration': ['ai', 'ml', 'machine learning', 'artificial intelligence', 'llm'],
+            'developer_experience': ['developer experience', 'dx', 'productivity', 'workflow', 'tools'],
+            'open_source': ['open source', 'opensource', 'community', 'contribution', 'maintainer']
+        }
+        
+        insights = []
         
         for article in articles:
             # Utiliser le contenu complet si disponible
             content = article.get('content', '') or article.get('summary', '')
             text = (article['title'] + ' ' + content).lower()
+            
+            # Extraire des insights clés du contenu
+            article_insights = self._extract_content_insights(content, article['title'])
+            insights.extend(article_insights)
             
             # Technologies
             for tech in self.domains[domain_key]['keywords']:
@@ -508,27 +528,81 @@ Rédige l'article généraliste tech:
                 if company in text:
                     company_mentions[company] = company_mentions.get(company, 0) + 1
             
-            # Types d'articles
-            if any(word in text for word in ['release', 'launch', 'announce']):
+            # Thèmes
+            for theme_name, theme_keywords in themes.items():
+                for keyword in theme_keywords:
+                    if keyword in text:
+                        theme_mentions[theme_name] = theme_mentions.get(theme_name, 0) + 1
+            
+            # Types d'articles avec plus de nuances
+            if any(word in text for word in ['release', 'launch', 'announce', 'introduce']):
                 context['article_types'].append('release')
-            elif any(word in text for word in ['update', 'upgrade', 'improve']):
+            elif any(word in text for word in ['update', 'upgrade', 'improve', 'enhance']):
                 context['article_types'].append('update')
-            elif any(word in text for word in ['security', 'vulnerability', 'breach']):
+            elif any(word in text for word in ['security', 'vulnerability', 'breach', 'exploit']):
                 context['article_types'].append('security')
                 context['urgency_level'] = 'high'
+            elif any(word in text for word in ['breaking', 'urgent', 'critical', 'emergency']):
+                context['urgency_level'] = 'high'
+            elif any(word in text for word in ['tutorial', 'guide', 'how-to', 'getting started']):
+                context['article_types'].append('educational')
+            elif any(word in text for word in ['analysis', 'deep dive', 'investigation']):
+                context['article_types'].append('analytical')
         
-        # Top technologies
+        # Analyse temporelle
+        if any(word in ' '.join([a.get('content', '') + a['title'] for a in articles]).lower() 
+               for word in ['today', 'this week', 'breaking', 'just announced']):
+            context['temporal_context'] = 'breaking'
+        elif any(word in ' '.join([a.get('content', '') + a['title'] for a in articles]).lower() 
+                 for word in ['trend', 'evolution', 'future', 'upcoming']):
+            context['temporal_context'] = 'trending'
+        
+        # Compilation des résultats
         context['trending_technologies'] = sorted(tech_mentions.items(), key=lambda x: x[1], reverse=True)[:5]
         context['key_companies'] = sorted(company_mentions.items(), key=lambda x: x[1], reverse=True)[:3]
+        context['key_themes'] = sorted(theme_mentions.items(), key=lambda x: x[1], reverse=True)[:4]
+        context['content_insights'] = insights[:6]  # Top 6 insights
         
-        # Niveau technique basé sur les sources
+        # Niveau technique basé sur les sources et le contenu
         academic_sources = ['MIT CSAIL News', 'Stanford AI Lab', 'Papers With Code', 'IEEE Spectrum']
+        technical_sources = ['Go Dev Blog', 'React Blog', 'Rust Blog', 'Python Official Blog']
+        
         if any(article['source'] in academic_sources for article in articles):
             context['technical_depth'] = 'high'
+        elif any(article['source'] in technical_sources for article in articles):
+            context['technical_depth'] = 'technical'
         elif any(article['source'] in ['TechCrunch', 'VentureBeat'] for article in articles):
             context['technical_depth'] = 'accessible'
         
         return context
+    
+    def _extract_content_insights(self, content: str, title: str) -> List[str]:
+        """Extrait des insights clés du contenu complet"""
+        if not content or len(content) < 200:
+            return []
+        
+        insights = []
+        
+        # Patterns d'insights importants
+        insight_patterns = [
+            r'(\d+(?:\.\d+)?%)\s+(?:improvement|increase|decrease|faster|slower)',
+            r'(?:new|latest|upcoming)\s+([a-zA-Z\s]+(?:version|release|update))',
+            r'(?:supports?|introduces?|features?)\s+([a-zA-Z\s]+(?:API|framework|library|tool))',
+            r'(?:significantly|dramatically|substantially)\s+([a-zA-Z\s]+)',
+            r'(?:compared to|versus|vs\.?)\s+([a-zA-Z\s]+)',
+        ]
+        
+        import re
+        
+        for pattern in insight_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            for match in matches[:2]:  # Max 2 par pattern
+                if isinstance(match, tuple):
+                    match = ' '.join(match)
+                if len(match) > 10 and len(match) < 80:
+                    insights.append(match.strip())
+        
+        return insights[:3]  # Max 3 insights par article
     
     def _create_optimized_prompt(self, domain_key: str, domain_info: Dict, articles: List[Dict], context: Dict) -> str:
         """Crée un prompt optimisé basé sur le contexte des articles"""
@@ -544,49 +618,72 @@ Rédige l'article généraliste tech:
         key_companies = [comp for comp, _ in context['key_companies']]
         company_context = f" (notamment {', '.join(key_companies[:2])})" if key_companies else ""
         
-        # Adapter le ton selon l'urgence
+        # Thèmes clés
+        key_themes = [theme for theme, _ in context['key_themes']]
+        themes_context = f"Thèmes dominants: {', '.join(key_themes[:3])}" if key_themes else ""
+        
+        # Insights du contenu
+        content_insights = context.get('content_insights', [])
+        insights_context = f"Insights clés: {' • '.join(content_insights[:3])}" if content_insights else ""
+        
+        # Adapter le ton selon l'urgence et le contexte temporel
         urgency_tone = {
             'high': 'URGENT - ',
             'normal': '',
             'low': ''
         }.get(context['urgency_level'], '')
         
+        temporal_indicators = {
+            'breaking': '🚨 BREAKING: ',
+            'trending': '📈 TRENDING: ',
+            'current': ''
+        }.get(context.get('temporal_context', 'current'), '')
+        
         # Prompts optimisés par domaine
         optimized_prompts = {
             'frontend': f"""
 Tu es un expert en développement frontend reconnu sur LinkedIn. Rédige un post engageant sur les dernières actualités frontend.
 
-🎯 CONTEXTE:
+🎯 CONTEXTE ENRICHI:
 • Technologies tendances: {tech_focus}
 • Entreprises actives: {', '.join(key_companies) if key_companies else 'écosystème global'}
+• {themes_context}
+• {insights_context}
 • Niveau technique: {context['technical_depth']}
-• Urgence: {context['urgency_level']}
+• Urgence: {context['urgency_level']} | Temporalité: {context.get('temporal_context', 'current')}
 
 📰 SOURCES ANALYSÉES ({len(articles)} articles):
 {articles_summary}
 
-✅ CONSIGNES LINKEDIN:
+✅ CONSIGNES LINKEDIN OPTIMISÉES:
 1. Ton professionnel mais accessible, adapté aux développeurs frontend
 2. Utiliser des émojis de façon stratégique (2-3 maximum)
 3. Structure avec des bullet points pour la lisibilité
-4. Inclure une question engageante en fin de post
+4. Inclure une question engageante spécifique au contenu analysé
 5. Mentionner l'impact concret pour les équipes frontend
 6. Citer les sources avec élégance: "selon [Source]"
 7. 280-350 mots pour optimiser l'engagement LinkedIn
-8. Éviter le jargon technique excessif
+8. Utiliser les insights extraits pour enrichir le contenu
+9. Adapter le ton à la temporalité des news
 
 🏗️ STRUCTURE OPTIMISÉE:
-• {urgency_tone}Accroche percutante (1 phrase + émoji)
-• Context: Pourquoi c'est important maintenant
-• 🔥 Points clés (2-3 développements majeurs avec bullet points)
-• 💡 Impact pratique pour les développeurs
-• ❓ Question d'engagement pour les commentaires
+• {temporal_indicators}{urgency_tone}Accroche percutante basée sur les insights réels
+• Context: Pourquoi c'est important maintenant (lien avec les thèmes identifiés)
+• 🔥 Points clés (2-3 développements majeurs avec extraits concrets)
+• 💡 Impact pratique pour les développeurs (basé sur les insights)
+• ❓ Question d'engagement spécifique au contenu analysé
 
-📝 STYLE LINKEDIN:
+📝 STYLE LINKEDIN ADAPTATIF:
 - Phrases courtes et percutantes
-- Transitions fluides entre les idées
+- Utiliser les insights extraits pour donner des exemples concrets
 - Ton informatif mais enthousiasmant
 - Focus sur la valeur ajoutée pour la communauté dev
+- Adapter l'urgence du ton selon le contexte temporel
+
+🎯 ÉLÉMENTS À INTÉGRER:
+- Utiliser les insights extraits comme exemples concrets
+- Mentionner les thèmes dominants identifiés
+- Adapter le call-to-action selon le type d'articles analysés
 
 Rédige le post LinkedIn frontend optimisé:
 """,
@@ -594,16 +691,18 @@ Rédige le post LinkedIn frontend optimisé:
             'backend': f"""
 Tu es un architecte backend senior influent sur LinkedIn. Crée un post captivant sur l'actualité backend/infrastructure.
 
-🎯 CONTEXTE:
+🎯 CONTEXTE TECHNIQUE ENRICHI:
 • Technologies phares: {tech_focus}
 • Acteurs majeurs: {', '.join(key_companies) if key_companies else 'écosystème complet'}{company_context}
+• {themes_context}
+• {insights_context}
 • Complexité: {context['technical_depth']}
-• Priorité: {context['urgency_level']}
+• Priorité: {context['urgency_level']} | Temporalité: {context.get('temporal_context', 'current')}
 
 📊 SOURCES ANALYSÉES ({len(articles)} articles):
 {articles_summary}
 
-✅ CONSIGNES LINKEDIN PRO:
+✅ CONSIGNES LINKEDIN PRO OPTIMISÉES:
 1. Expertise technique mais accessible aux lead devs
 2. Émojis techniques pertinents (⚡🔧🚀) avec parcimonie
 3. Structure claire avec sections définies
@@ -611,20 +710,28 @@ Tu es un architecte backend senior influent sur LinkedIn. Crée un post captivan
 5. Implications concrètes pour l'architecture et les équipes
 6. Citations élégantes: "d'après [Source]" ou "selon [Source]"
 7. 300-380 mots pour maximiser l'engagement professionnel
-8. Équilibre entre technique et stratégique
+8. Utiliser les insights extraits pour donner des métriques/exemples concrets
+9. Adapter le ton à l'urgence et la temporalité des développements
 
 🏛️ ARCHITECTURE DU POST:
-• {urgency_tone}Hook technique percutant (problème/opportunité)
-• Contexte: Enjeux actuels pour les équipes backend
-• ⚡ Développements clés (2-3 points avec impact technique)
-• 🔧 Implications pratiques (performance, scalabilité, sécurité)
-• 💭 Question stratégique pour stimuler les discussions
+• {temporal_indicators}{urgency_tone}Hook technique percutant basé sur les insights réels
+• Contexte: Enjeux actuels pour les équipes backend (lien avec thèmes identifiés)
+• ⚡ Développements clés (2-3 points avec impact technique et métriques)
+• 🔧 Implications pratiques (performance, scalabilité, sécurité) avec exemples concrets
+• 💭 Question stratégique spécifique au contenu analysé
 
-📈 ANGLE LINKEDIN:
+📈 ANGLE LINKEDIN ADAPTATIF:
 - Vocabulaire technique précis mais accessible
-- Focus sur ROI et impact métier
-- Ton d'expert consultant
+- Focus sur ROI et impact métier avec données concrètes
+- Ton d'expert consultant adapté à la temporalité
 - Valeur actionnable pour les professionnels
+- Utiliser les insights pour donner des exemples chiffrés
+
+🎯 ÉLÉMENTS TECHNIQUES À INTÉGRER:
+- Utiliser les insights extraits pour donner des métriques de performance
+- Mentionner les thèmes dominants avec implications architecturales
+- Adapter le niveau d'urgence selon le contexte temporel
+- Inclure des implications concrètes pour les équipes
 
 Crée le post LinkedIn backend expert:
 """,
@@ -709,10 +816,13 @@ Crée le post LinkedIn tech leader:
         return optimized_prompts.get(domain_key, optimized_prompts['general'])
     
     def _build_contextual_summary(self, articles: List[Dict], context: Dict) -> str:
-        """Construit un résumé contextuel des articles"""
+        """Construit un résumé contextuel enrichi des articles avec LLM"""
         summary_lines = []
         
-        for i, article in enumerate(articles, 1):
+        # Générer tous les summaries en une fois pour optimiser les performances
+        articles_with_summaries = self._generate_batch_summaries(articles)
+        
+        for i, article in enumerate(articles_with_summaries, 1):
             source = article['source']
             title = article['title']
             
@@ -720,23 +830,149 @@ Crée le post LinkedIn tech leader:
             if len(title) > 70:
                 title = title[:67] + "..."
             
-            # Ajouter des indicateurs de contexte
+            # Utiliser le summary AI généré
+            ai_summary = article.get('ai_summary', '')
+            
+            # Ajouter des indicateurs de contexte améliorés
             indicators = []
-            # Utiliser le contenu complet si disponible
             content = article.get('content', '') or article.get('summary', '')
             text = (title + ' ' + content).lower()
             
             if any(word in text for word in ['release', 'launch', 'announce']):
                 indicators.append('🚀')
-            elif any(word in text for word in ['update', 'security']):
+            elif any(word in text for word in ['update', 'security', 'vulnerability']):
                 indicators.append('🔒')
-            elif any(word in text for word in ['performance', 'speed']):
+            elif any(word in text for word in ['performance', 'speed', 'optimization']):
                 indicators.append('⚡')
+            elif any(word in text for word in ['breaking', 'urgent', 'critical']):
+                indicators.append('🚨')
+            elif any(word in text for word in ['tutorial', 'guide', 'how-to']):
+                indicators.append('📚')
             
             indicator = ''.join(indicators[:1])  # Max 1 emoji
-            summary_lines.append(f"{i}. {indicator} {source}: \"{title}\"")
+            
+            # Format enrichi avec summary AI
+            base_line = f"{i}. {indicator} {source}: \"{title}\""
+            if ai_summary and len(ai_summary) > 20:
+                base_line += f"\n   → {ai_summary}"
+            
+            summary_lines.append(base_line)
         
         return "\n".join(summary_lines)
+    
+    def _generate_batch_summaries(self, articles: List[Dict]) -> List[Dict]:
+        """Génère des summaries pour tous les articles de manière optimisée"""
+        enhanced_articles = []
+        
+        for article in articles:
+            enhanced_article = article.copy()
+            
+            # Générer le summary AI
+            content = article.get('content', '') or article.get('summary', '')
+            ai_summary = self._generate_article_summary(content, article['title'], article['source'])
+            enhanced_article['ai_summary'] = ai_summary
+            
+            enhanced_articles.append(enhanced_article)
+            
+            # Log du progrès
+            logger.info(f"Generated summary for: {article['title'][:50]}...")
+        
+        return enhanced_articles
+    
+    def _generate_article_summary(self, content: str, title: str, source: str) -> str:
+        """Génère un résumé intelligent d'un article avec le LLM"""
+        if not content or len(content) < 100:
+            return ""
+        
+        try:
+            # Limiter le contenu pour éviter des coûts excessifs
+            limited_content = content[:3000] if len(content) > 3000 else content
+            
+            summary_prompt = f"""
+Analyse cet article technique et génère un résumé de 1-2 phrases (max 120 caractères) qui capture l'essentiel pour un développeur.
+
+ARTICLE: "{title}"
+SOURCE: {source}
+CONTENU: {limited_content}
+
+CONSIGNES:
+- 1-2 phrases maximum
+- Focus sur l'impact technique concret
+- Langage accessible aux développeurs
+- Éviter le jargon marketing
+- Mettre l'accent sur ce qui change concrètement
+
+RÉSUMÉ:"""
+
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=summary_prompt
+            )
+            
+            summary = response.text.strip()
+            
+            # Nettoyer et limiter la taille
+            if len(summary) > 120:
+                summary = summary[:117] + "..."
+            
+            # Supprimer les guillemets et autres caractères indésirables
+            summary = summary.replace('"', '').replace('«', '').replace('»', '').strip()
+            
+            return summary
+            
+        except Exception as e:
+            logger.debug(f"Error generating summary for article: {e}")
+            # Fallback vers l'extraction manuelle
+            return self._extract_key_excerpt(content, title)
+    
+    def _extract_key_excerpt(self, content: str, title: str) -> str:
+        """Extrait un extrait clé pertinent du contenu"""
+        if not content or len(content) < 100:
+            return ""
+        
+        # Diviser en phrases
+        sentences = content.split('.')
+        key_sentences = []
+        
+        # Mots-clés indicateurs d'importance
+        importance_keywords = [
+            'announce', 'release', 'launch', 'introduce', 'new', 'update',
+            'improve', 'performance', 'security', 'feature', 'version',
+            'significant', 'major', 'important', 'breakthrough', 'innovative'
+        ]
+        
+        for sentence in sentences[:10]:  # Examiner les 10 premières phrases
+            sentence = sentence.strip()
+            if len(sentence) > 30 and len(sentence) < 150:
+                # Scorer la pertinence
+                score = 0
+                sentence_lower = sentence.lower()
+                
+                # Bonus pour mots-clés d'importance
+                for keyword in importance_keywords:
+                    if keyword in sentence_lower:
+                        score += 2
+                
+                # Bonus pour contenu technique
+                if any(word in sentence_lower for word in ['api', 'framework', 'library', 'tool', 'platform']):
+                    score += 1
+                
+                # Éviter les phrases trop génériques
+                if any(word in sentence_lower for word in ['according to', 'in conclusion', 'furthermore']):
+                    score -= 1
+                
+                if score > 0:
+                    key_sentences.append((sentence, score))
+        
+        if key_sentences:
+            # Retourner la phrase avec le meilleur score
+            best_sentence = max(key_sentences, key=lambda x: x[1])[0]
+            # Nettoyer et raccourcir si nécessaire
+            if len(best_sentence) > 120:
+                best_sentence = best_sentence[:117] + "..."
+            return best_sentence
+        
+        return ""
     
     def _optimize_for_linkedin(self, content: str, domain_key: str) -> str:
         """Optimise le contenu pour LinkedIn"""
