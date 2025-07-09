@@ -3,19 +3,19 @@ import time
 from datetime import datetime
 from loguru import logger
 import os
-from src.webdev_scraper import WebDevNewsScraper
-from src.webdev_generator import WebDevPostGenerator
+from src.fullstack_scraper import FullStackDevScraper
+from src.fullstack_generator import FullStackPostGenerator
 from src.database import DatabaseManager
 from src.web_interface import run_web_interface
 import threading
 
 class PostScheduler:
     def __init__(self):
-        self.scraper = WebDevNewsScraper()
-        self.generator = WebDevPostGenerator()
+        self.scraper = FullStackDevScraper()
+        self.generator = FullStackPostGenerator()
         self.db = DatabaseManager()
         self.interval_hours = int(os.getenv('SCRAPING_INTERVAL_HOURS', 6))
-        self.max_articles = int(os.getenv('MAX_ARTICLES_PER_SCRAPE', 30))
+        self.max_articles = int(os.getenv('MAX_ARTICLES_PER_SCRAPE', 40))
         self.running = False
         
     def generate_posts(self):
@@ -30,9 +30,9 @@ class PostScheduler:
                 logger.warning("No articles found during scraping")
                 return
             
-            # Generate webdev synthesis
+            # Generate fullstack synthesis
             variations = self.generator.generate_article_variations(articles, count=1)
-            logger.info(f"Generated {len(variations)} webdev article(s)")
+            logger.info(f"Generated {len(variations)} fullstack article(s)")
             
             # Save to database
             for post in variations:
