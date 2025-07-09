@@ -220,18 +220,25 @@ class ScrapeDomain(Resource):
             data = request.get_json() or {}
             force_refresh = data.get('force_refresh', False)
             
+            # Limiter le nombre d'articles pour éviter les timeouts
+            max_articles = 30 if domain == 'all' else 20
+            
+            logger.info(f"Starting scraping for domain: {domain}, force_refresh: {force_refresh}, max_articles: {max_articles}")
+            
             scraper = get_scraper()
             
             if domain == 'all':
-                articles = scraper.scrape_all_sources(max_articles=100, use_cache=not force_refresh)
+                articles = scraper.scrape_all_sources(max_articles=max_articles, use_cache=not force_refresh)
             else:
-                articles = scraper.scrape_domain_sources(domain, max_articles=50, use_cache=not force_refresh)
+                articles = scraper.scrape_domain_sources(domain, max_articles=max_articles, use_cache=not force_refresh)
             
             articles = sorted(articles, key=lambda x: x.get('relevance_score', 0), reverse=True)
             
+            logger.info(f"Scraping completed for domain: {domain}, found {len(articles)} articles")
+            
             return {
                 'success': True,
-                'articles': articles[:50],
+                'articles': articles[:30],  # Limiter davantage pour l'interface
                 'total_count': len(articles),
                 'domain': domain,
                 'from_cache': not force_refresh

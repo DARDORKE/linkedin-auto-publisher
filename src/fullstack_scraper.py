@@ -7,12 +7,19 @@ from typing import List, Dict, Optional
 import re
 from urllib.parse import urljoin, urlparse
 import feedparser
+import signal
+from contextlib import contextmanager
 from src.database import DatabaseManager
 
 class FullStackDevScraper:
     def __init__(self, db_manager: DatabaseManager = None):
         self.db = db_manager or DatabaseManager()
         self.cache_duration_hours = 6  # Durée de vie du cache en heures
+        self.request_timeout = 30  # Timeout pour les requêtes HTTP
+        self.max_retries = 2  # Nombre maximum de tentatives
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
         self.sources = [
             # Sources développement françaises
             {
@@ -26,7 +33,7 @@ class FullStackDevScraper:
             {
                 "name": "Grafikart",
                 "type": "rss",
-                "url": "https://grafikart.fr/tutoriels.rss",
+                "url": "https://grafikart.fr/formations.rss",
                 "category": "dev_fr",
                 "reliability": 9,
                 "domains": ["frontend", "backend"]
@@ -248,7 +255,7 @@ class FullStackDevScraper:
             {
                 "name": "OpenAI Blog",
                 "type": "rss",
-                "url": "https://openai.com/blog/rss/",
+                "url": "https://openai.com/news/rss.xml",
                 "category": "ai",
                 "reliability": 10,
                 "domains": ["ai"]
@@ -256,7 +263,7 @@ class FullStackDevScraper:
             {
                 "name": "Google AI Blog",
                 "type": "rss",
-                "url": "https://ai.googleblog.com/feeds/posts/default",
+                "url": "https://research.google/blog/rss/",
                 "category": "ai",
                 "reliability": 10,
                 "domains": ["ai"]
@@ -264,7 +271,7 @@ class FullStackDevScraper:
             {
                 "name": "Anthropic News",
                 "type": "rss",
-                "url": "https://www.anthropic.com/news/rss.xml",
+                "url": "https://rsshub.app/anthropic/news",
                 "category": "ai",
                 "reliability": 10,
                 "domains": ["ai"]
@@ -286,9 +293,9 @@ class FullStackDevScraper:
                 "domains": ["ai"]
             },
             {
-                "name": "Papers With Code",
+                "name": "arXiv ML Updates",
                 "type": "rss",
-                "url": "https://paperswithcode.com/feed.xml",
+                "url": "https://rss.arxiv.org/rss/cs.LG",
                 "category": "ai",
                 "reliability": 9,
                 "domains": ["ai"]
@@ -312,7 +319,7 @@ class FullStackDevScraper:
             {
                 "name": "Meta AI Blog",
                 "type": "rss",
-                "url": "https://ai.meta.com/blog/rss/",
+                "url": "https://research.facebook.com/feed/",
                 "category": "ai",
                 "reliability": 9,
                 "domains": ["ai"]
@@ -320,7 +327,7 @@ class FullStackDevScraper:
             {
                 "name": "MIT CSAIL News",
                 "type": "rss",
-                "url": "https://www.csail.mit.edu/news/rss.xml",
+                "url": "https://news.mit.edu/rss/research",
                 "category": "ai",
                 "reliability": 10,
                 "domains": ["ai"]
@@ -336,7 +343,7 @@ class FullStackDevScraper:
             {
                 "name": "AI Research Blog",
                 "type": "rss",
-                "url": "https://ai.googleblog.com/feeds/posts/default?alt=rss",
+                "url": "https://research.google/blog/rss/",
                 "category": "ai",
                 "reliability": 9,
                 "domains": ["ai"]
@@ -581,8 +588,55 @@ class FullStackDevScraper:
     
     def _scrape_rss(self, source: Dict) -> List[Dict]:
         articles = []
-        feed = feedparser.parse(source['url'])
         
+        # Tenter de récupérer le feed avec timeout et retry
+        for attempt in range(self.max_retries + 1):
+            try:
+                # Faire la requête HTTP avec timeout explicite
+                response = requests.get(
+                    source['url'], 
+                    headers=self.headers, 
+                    timeout=self.request_timeout
+                )
+                response.raise_for_status()
+                
+                # Parser le contenu RSS
+                feed = feedparser.parse(response.content)
+                
+                # Vérifier si le feed est valide
+                if hasattr(feed, 'entries') and feed.entries:
+                    break
+                else:
+                    logger.warning(f"Empty or invalid RSS feed for {source['name']}")
+                    if attempt < self.max_retries:
+                        time.sleep(2 ** attempt)  # Backoff exponentiel
+                        continue
+                    else:
+                        return []
+                        
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout fetching RSS feed for {source['name']} (attempt {attempt + 1})")
+                if attempt < self.max_retries:
+                    time.sleep(2 ** attempt)  # Backoff exponentiel
+                    continue
+                else:
+                    logger.error(f"Max retries exceeded for {source['name']} due to timeout")
+                    return []
+                    
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Request error for {source['name']}: {e} (attempt {attempt + 1})")
+                if attempt < self.max_retries:
+                    time.sleep(2 ** attempt)  # Backoff exponentiel
+                    continue
+                else:
+                    logger.error(f"Max retries exceeded for {source['name']}: {e}")
+                    return []
+                    
+            except Exception as e:
+                logger.error(f"Unexpected error fetching RSS feed for {source['name']}: {e}")
+                return []
+        
+        # Parser les articles
         for entry in feed.entries[:12]:  # Limiter par source
             try:
                 article = {
@@ -593,19 +647,46 @@ class FullStackDevScraper:
                     'reliability': source['reliability'],
                     'domains': source['domains'],
                     'published': self._parse_date(entry.get('published', '')),
-                    'summary': BeautifulSoup(entry.get('summary', ''), 'html.parser').get_text()[:400],
+                    'summary': self._clean_html_summary(entry.get('summary', '')),
                     'scraped_at': datetime.now()
                 }
                 articles.append(article)
             except Exception as e:
-                logger.debug(f"Error parsing RSS entry: {e}")
+                logger.debug(f"Error parsing RSS entry from {source['name']}: {e}")
                 
         return articles
     
     def _scrape_web(self, source: Dict) -> List[Dict]:
         articles = []
-        response = requests.get(source['url'], headers=self.headers, timeout=10)
-        response.raise_for_status()
+        
+        # Tenter de récupérer la page avec timeout et retry
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = requests.get(
+                    source['url'], 
+                    headers=self.headers, 
+                    timeout=self.request_timeout
+                )
+                response.raise_for_status()
+                break
+                
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout fetching web page for {source['name']} (attempt {attempt + 1})")
+                if attempt < self.max_retries:
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    logger.error(f"Max retries exceeded for {source['name']} due to timeout")
+                    return []
+                    
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Request error for {source['name']}: {e} (attempt {attempt + 1})")
+                if attempt < self.max_retries:
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    logger.error(f"Max retries exceeded for {source['name']}: {e}")
+                    return []
         
         soup = BeautifulSoup(response.content, 'html.parser')
         items = soup.select(source['selector'])[:15]
@@ -649,6 +730,28 @@ class FullStackDevScraper:
                 logger.debug(f"Error extracting article: {e}")
                 
         return articles
+    
+    def _clean_html_summary(self, summary: str) -> str:
+        """Clean HTML from summary text safely"""
+        if not summary:
+            return ""
+        
+        try:
+            # Vérifier si c'est du HTML ou du texte brut
+            if '<' in summary and '>' in summary:
+                # C'est du HTML, nettoyer avec BeautifulSoup
+                soup = BeautifulSoup(summary, 'html.parser')
+                text = soup.get_text()
+            else:
+                # C'est du texte brut
+                text = summary
+            
+            # Nettoyer et limiter la longueur
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text[:400]
+        except Exception as e:
+            logger.debug(f"Error cleaning summary: {e}")
+            return summary[:400] if summary else ""
     
     def _parse_date(self, date_str: str) -> datetime:
         try:

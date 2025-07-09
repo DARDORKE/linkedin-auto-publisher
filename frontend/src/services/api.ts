@@ -5,6 +5,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 180000, // 3 minutes pour les opérations de scraping
 });
 
 export interface Post {
