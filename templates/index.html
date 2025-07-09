@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Auto Publisher - Validation</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>LinkedIn Auto Publisher</h1>
+        
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('pending')">Posts en attente</button>
+            <button class="tab-button" onclick="showTab('approved')">Posts approuvés</button>
+        </div>
+        
+        <div id="pending-tab" class="tab-content active">
+            <h2>Posts à valider</h2>
+            <div id="pending-posts" class="posts-container"></div>
+        </div>
+        
+        <div id="approved-tab" class="tab-content">
+            <h2>Posts approuvés (prêts à publier)</h2>
+            <div id="approved-posts" class="posts-container"></div>
+        </div>
+    </div>
+    
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Éditer le post</h2>
+            <textarea id="edit-content" rows="10"></textarea>
+            <button onclick="saveEdit()">Sauvegarder</button>
+        </div>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>

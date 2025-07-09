@@ -1,0 +1,28 @@
+# Web scraping
+beautifulsoup4==4.12.3
+requests==2.31.0
+selenium==4.18.1
+
+# API and AI
+google-generativeai==0.3.2
+
+# LinkedIn API (unofficial)
+linkedin-api==2.1.1
+
+# Scheduling and automation
+schedule==1.2.0
+python-dotenv==1.0.1
+
+# Data handling
+pandas==2.2.0
+
+# Web interface for manual validation
+flask==3.0.0
+flask-cors==4.0.0
+
+# Database for storing posts
+sqlalchemy==2.0.25
+sqlite3
+
+# Logging
+loguru==0.7.2
