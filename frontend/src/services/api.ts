@@ -66,6 +66,7 @@ export const scrapeApi = {
   scrapeDomain: (domain: string, forceRefresh = false) =>
     api.post<{
       success: boolean;
+      session_id?: string;
       articles: Article[];
       total_count: number;
       domain: string;
@@ -75,6 +76,7 @@ export const scrapeApi = {
   generateFromSelection: (articles: Article[], domain: string) =>
     api.post<{
       success: boolean;
+      session_id?: string;
       post: Post;
       message: string;
     }>('/scrape/generate-from-selection', { articles, domain }),

@@ -5,6 +5,7 @@ from src.database import DatabaseManager
 from src.linkedin_publisher import LinkedInPublisher
 from src.fullstack_scraper import FullStackDevScraper
 from src.specialized_generator import SpecializedPostGenerator
+from src.websocket_service import websocket_service, generate_session_id
 from loguru import logger
 import json
 import os
@@ -12,6 +13,9 @@ from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
+
+# Initialiser le service WebSocket
+websocket_service.init_app(app)
 
 # Configuration Swagger
 api = Api(
@@ -210,9 +214,16 @@ class ScrapeDomain(Resource):
     @scrape_ns.expect(api.model('ScrapeRequest', {
         'force_refresh': fields.Boolean(description='Forcer le refresh (ignorer le cache)')
     }))
-    @scrape_ns.marshal_with(scrape_response_model)
+    @scrape_ns.marshal_with(api.model('ScrapeResponse', {
+        'success': fields.Boolean(),
+        'session_id': fields.String(),
+        'articles': fields.List(fields.Nested(article_model)),
+        'total_count': fields.Integer(),
+        'domain': fields.String(),
+        'from_cache': fields.Boolean()
+    }))
     def post(self, domain):
-        """Lance le scraping pour un domaine spécifique"""
+        """Lance le scraping pour un domaine spécifique avec WebSocket"""
         try:
             valid_domains = ['frontend', 'backend', 'ai', 'all']
             if domain not in valid_domains:
@@ -224,9 +235,18 @@ class ScrapeDomain(Resource):
             # Limiter le nombre d'articles pour éviter les timeouts
             max_articles = 30 if domain == 'all' else 20
             
-            logger.info(f"Starting scraping for domain: {domain}, force_refresh: {force_refresh}, max_articles: {max_articles}")
+            # Générer un ID de session unique
+            session_id = generate_session_id()
+            
+            logger.info(f"Starting scraping session {session_id} for domain: {domain}, force_refresh: {force_refresh}, max_articles: {max_articles}")
+            
+            # Démarrer la session WebSocket
+            websocket_service.start_scraping_session(session_id, domain, max_articles)
             
             scraper = get_scraper()
+            
+            # Passer la session WebSocket au scraper
+            scraper.set_websocket_session(session_id, websocket_service)
             
             if domain == 'all':
                 articles = scraper.scrape_all_sources(max_articles=max_articles, use_cache=not force_refresh)
@@ -237,8 +257,17 @@ class ScrapeDomain(Resource):
             
             logger.info(f"Scraping completed for domain: {domain}, found {len(articles)} articles")
             
+            # Terminer la session WebSocket
+            results = {
+                'total_articles': len(articles),
+                'domain': domain,
+                'from_cache': not force_refresh
+            }
+            websocket_service.complete_scraping_session(session_id, results)
+            
             return {
                 'success': True,
+                'session_id': session_id,
                 'articles': articles[:30],  # Limiter davantage pour l'interface
                 'total_count': len(articles),
                 'domain': domain,
@@ -247,6 +276,11 @@ class ScrapeDomain(Resource):
             
         except Exception as e:
             logger.error(f"Error scraping domain {domain}: {e}")
+            if 'session_id' in locals():
+                websocket_service.send_error(session_id, {
+                    'type': 'scraping_error',
+                    'message': str(e)
+                })
             return {'success': False, 'message': str(e)}, 500
 
 @scrape_ns.route('/generate-from-selection')
@@ -258,11 +292,12 @@ class GenerateFromSelection(Resource):
     }))
     @scrape_ns.marshal_with(api.model('GenerateResponse', {
         'success': fields.Boolean(),
+        'session_id': fields.String(),
         'post': fields.Nested(post_model),
         'message': fields.String()
     }))
     def post(self):
-        """Génère un post à partir d'articles sélectionnés"""
+        """Génère un post à partir d'articles sélectionnés avec WebSocket"""
         try:
             data = request.get_json()
             articles = data.get('articles', [])
@@ -274,22 +309,53 @@ class GenerateFromSelection(Resource):
             if not domain:
                 return {'success': False, 'message': 'Domain is required'}, 400
             
+            # Générer un ID de session unique
+            session_id = generate_session_id()
+            
+            logger.info(f"Starting generation session {session_id} for domain: {domain} with {len(articles)} articles")
+            
+            # Démarrer la session WebSocket
+            websocket_service.start_generation_session(session_id, domain, len(articles))
+            
             generator = get_generator()
+            
+            # Passer la session WebSocket au générateur
+            generator.set_websocket_session(session_id, websocket_service)
+            
             post_data = generator.generate_domain_post(articles, domain)
             
             if post_data:
                 post_id = db.save_post(post_data)
                 post_data['id'] = post_id
+                
+                # Terminer la session WebSocket
+                results = {
+                    'post_id': post_id,
+                    'domain': domain,
+                    'articles_count': len(articles)
+                }
+                websocket_service.complete_generation_session(session_id, results)
+                
                 return {
                     'success': True,
+                    'session_id': session_id,
                     'post': post_data,
                     'message': 'Post generated successfully'
                 }
             else:
+                websocket_service.send_error(session_id, {
+                    'type': 'generation_error',
+                    'message': 'Failed to generate post'
+                })
                 return {'success': False, 'message': 'Failed to generate post'}, 500
                 
         except Exception as e:
             logger.error(f"Error generating post: {e}")
+            if 'session_id' in locals():
+                websocket_service.send_error(session_id, {
+                    'type': 'generation_error',
+                    'message': str(e)
+                })
             return {'success': False, 'message': str(e)}, 500
 
 # Routes Domains
@@ -395,7 +461,8 @@ def api_info():
 
 def run_web_interface():
     port = int(os.getenv('FLASK_PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    # Utiliser socketio.run au lieu de app.run pour le support WebSocket
+    websocket_service.socketio.run(app, host='0.0.0.0', port=port, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
 
 if __name__ == '__main__':
     import os

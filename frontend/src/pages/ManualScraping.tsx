@@ -30,6 +30,7 @@ import toast from 'react-hot-toast';
 import { domainApi, scrapeApi, Article } from '../services/api';
 import LoadingScreen from '../components/LoadingScreen';
 import ArticleModal from '../components/ArticleModal';
+import useWebSocket from '../hooks/useWebSocket';
 
 
 export default function ManualScraping() {
@@ -46,22 +47,44 @@ export default function ManualScraping() {
     queryFn: () => domainApi.getDomains(),
   });
 
+  // WebSocket hook pour suivre les progrès en temps réel
+  const webSocketState = useWebSocket({
+    onScrapingStarted: () => {
+      setScrapingTime(Date.now());
+    },
+    onScrapingCompleted: (data) => {
+      if (scrapingTime) {
+        const endTime = Date.now();
+        setScrapingTime(endTime - scrapingTime);
+      }
+      toast.success(`${data.results.total_articles} articles trouvés`);
+    },
+    onGenerationCompleted: () => {
+      toast.success('Post généré avec succès');
+      queryClient.invalidateQueries({ queryKey: ['posts', 'pending'] });
+      // Reset
+      setSelectedArticles([]);
+      setScrapedArticles([]);
+      setSelectedDomain('');
+    },
+    onError: (data) => {
+      toast.error(`Erreur: ${data.error.message}`);
+    },
+  });
+
 
   const scrapeMutation = useMutation({
     mutationFn: ({ domain }: { domain: string }) => {
-      const startTime = Date.now();
-      return scrapeApi.scrapeDomain(domain, false).then(response => {
-        const endTime = Date.now();
-        setScrapingTime(endTime - startTime);
-        return response;
-      });
+      return scrapeApi.scrapeDomain(domain, false);
     },
     onSuccess: (data) => {
       setScrapedArticles(data.data.articles);
       setSelectedArticles([]);
       
-      const timeInfo = scrapingTime ? ` en ${scrapingTime}ms` : '';
-      toast.success(`${data.data.total_count} articles trouvés${timeInfo}`);
+      // Rejoindre la session WebSocket si elle existe
+      if (data.data.session_id) {
+        webSocketState.joinScrapingSession(data.data.session_id);
+      }
     },
     onError: () => {
       toast.error('Erreur lors du scraping');
@@ -73,12 +96,11 @@ export default function ManualScraping() {
     mutationFn: ({ articles, domain }: { articles: Article[]; domain: string }) =>
       scrapeApi.generateFromSelection(articles, domain),
     onSuccess: (data) => {
-      toast.success(data.data.message);
-      queryClient.invalidateQueries({ queryKey: ['posts', 'pending'] });
-      // Reset
-      setSelectedArticles([]);
-      setScrapedArticles([]);
-      setSelectedDomain('');
+      // Rejoindre la session WebSocket si elle existe
+      if (data.data.session_id) {
+        webSocketState.joinGenerationSession(data.data.session_id);
+      }
+      // Le toast et reset sont gérés par le WebSocket callback
     },
     onError: () => {
       toast.error('Erreur lors de la génération');
@@ -358,17 +380,25 @@ export default function ManualScraping() {
       )}
 
       <LoadingScreen
-        open={scrapeMutation.isPending}
+        open={scrapeMutation.isPending || webSocketState.sessionType === 'scraping'}
         title="Scraping en cours..."
         description="Récupération des articles depuis les sources RSS"
-        showProgress={false}
+        showProgress={true}
+        progress={webSocketState.progress?.percentage}
+        realTimeMessage={webSocketState.progress?.message}
+        progressDetails={webSocketState.progress?.details}
+        sessionType={webSocketState.sessionType}
       />
 
       <LoadingScreen
-        open={generateMutation.isPending}
+        open={generateMutation.isPending || webSocketState.sessionType === 'generation'}
         title="Génération en cours..."
         description="Création du post LinkedIn à partir des articles sélectionnés"
-        showProgress={false}
+        showProgress={true}
+        progress={webSocketState.progress?.percentage}
+        realTimeMessage={webSocketState.progress?.message}
+        progressDetails={webSocketState.progress?.details}
+        sessionType={webSocketState.sessionType}
       />
 
       <ArticleModal

@@ -7,6 +7,8 @@ import {
   LinearProgress,
   CircularProgress,
   Stack,
+  Chip,
+  Paper,
 } from '@mui/material';
 
 interface LoadingScreenProps {
@@ -15,6 +17,9 @@ interface LoadingScreenProps {
   description?: string;
   progress?: number;
   showProgress?: boolean;
+  realTimeMessage?: string;
+  progressDetails?: any;
+  sessionType?: 'scraping' | 'generation' | null;
 }
 
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
@@ -23,6 +28,9 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
   description,
   progress,
   showProgress = true,
+  realTimeMessage,
+  progressDetails,
+  sessionType,
 }) => {
   return (
     <Dialog
@@ -54,10 +62,69 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
               {title}
             </Typography>
             
-            {description && (
+            {/* Session type indicator */}
+            {sessionType && (
+              <Chip
+                label={sessionType === 'scraping' ? 'Scraping' : 'Génération'}
+                color={sessionType === 'scraping' ? 'info' : 'success'}
+                size="small"
+                sx={{ mb: 1 }}
+              />
+            )}
+            
+            {/* Real-time message */}
+            {realTimeMessage && (
+              <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500 }}>
+                {realTimeMessage}
+              </Typography>
+            )}
+            
+            {/* Fallback description */}
+            {description && !realTimeMessage && (
               <Typography variant="body2" color="text.secondary">
                 {description}
               </Typography>
+            )}
+            
+            {/* Progress details */}
+            {progressDetails && (
+              <Paper elevation={0} sx={{ p: 2, backgroundColor: '#f5f5f5', width: '100%', maxWidth: 400 }}>
+                <Stack spacing={1}>
+                  {progressDetails.type === 'source_completed' && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Source: {progressDetails.source_name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Articles trouvés: {progressDetails.articles_found}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Progression: {progressDetails.completed_sources}/{progressDetails.total_sources}
+                      </Typography>
+                    </>
+                  )}
+                  {progressDetails.type === 'domain_completed' && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Domaine: {progressDetails.domain}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Articles trouvés: {progressDetails.articles_found}
+                      </Typography>
+                    </>
+                  )}
+                  {progressDetails.type === 'generation_started' && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Domaine: {progressDetails.domain}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Articles sélectionnés: {progressDetails.articles_count}
+                      </Typography>
+                    </>
+                  )}
+                </Stack>
+              </Paper>
             )}
             
             {showProgress && (

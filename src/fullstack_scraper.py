@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from loguru import logger
 import time
-from typing import List, Dict, Optional, Set, Tuple
+from typing import List, Dict, Optional, Set, Tuple, Any
 import re
 from urllib.parse import urljoin
 import feedparser
@@ -24,6 +24,10 @@ class FullStackDevScraper:
         self.cache_duration_hours = 12
         self.request_timeout = 8
         self.max_retries = 1
+        
+        # WebSocket session pour le suivi des progrès
+        self.websocket_session_id = None
+        self.websocket_service = None
         
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -99,6 +103,19 @@ class FullStackDevScraper:
             ]
         }
     
+    def set_websocket_session(self, session_id: str, websocket_service) -> None:
+        """Configure la session WebSocket pour le suivi des progrès"""
+        self.websocket_session_id = session_id
+        self.websocket_service = websocket_service
+    
+    def _emit_progress(self, progress_data: Dict[str, Any]) -> None:
+        """Émet un événement de progression via WebSocket"""
+        if self.websocket_service and self.websocket_session_id:
+            try:
+                self.websocket_service.update_scraping_progress(self.websocket_session_id, progress_data)
+            except Exception as e:
+                logger.debug(f"Error emitting progress: {e}")
+    
     def scrape_all_sources(self, max_articles: int = 40, use_cache: bool = True) -> List[Dict]:
         """
         Scrape toutes les sources et retourne les meilleurs articles
@@ -121,7 +138,18 @@ class FullStackDevScraper:
         # Scraper chaque domaine
         for domain, count in articles_per_domain.items():
             logger.info(f"Scraping {domain} domain (target: {count} articles)...")
+            self._emit_progress({
+                'type': 'domain_started',
+                'domain': domain,
+                'target_articles': count,
+                'total_domains': len(articles_per_domain)
+            })
             domain_articles[domain] = self._scrape_domain(domain, count, use_cache)
+            self._emit_progress({
+                'type': 'domain_completed',
+                'domain': domain,
+                'articles_found': len(domain_articles[domain])
+            })
         
         # Combiner tous les articles
         all_articles = []
@@ -156,22 +184,63 @@ class FullStackDevScraper:
         # Utiliser toutes les sources disponibles
         sources_to_scrape = sources
         
+        self._emit_progress({
+            'type': 'sources_started',
+            'domain': domain,
+            'sources_count': len(sources_to_scrape)
+        })
+        
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_to_source = {
                 executor.submit(self._scrape_source, source): source 
                 for source in sources_to_scrape
             }
             
+            completed_sources = 0
             for future in as_completed(future_to_source, timeout=20):
                 try:
+                    source = future_to_source[future]
                     articles = future.result()
                     if articles:
                         all_articles.extend(articles)
+                    completed_sources += 1
+                    
+                    self._emit_progress({
+                        'type': 'source_completed',
+                        'domain': domain,
+                        'source_name': source['name'],
+                        'articles_found': len(articles) if articles else 0,
+                        'completed_sources': completed_sources,
+                        'total_sources': len(sources_to_scrape)
+                    })
+                    
                 except Exception as e:
                     logger.error(f"Error scraping source: {e}")
+                    completed_sources += 1
+                    self._emit_progress({
+                        'type': 'source_error',
+                        'domain': domain,
+                        'source_name': future_to_source[future]['name'],
+                        'error': str(e),
+                        'completed_sources': completed_sources,
+                        'total_sources': len(sources_to_scrape)
+                    })
         
         # Traiter et scorer
+        self._emit_progress({
+            'type': 'processing_started',
+            'domain': domain,
+            'total_articles': len(all_articles)
+        })
+        
         processed = self._process_and_score(all_articles, domain)
+        
+        self._emit_progress({
+            'type': 'processing_completed',
+            'domain': domain,
+            'processed_articles': len(processed),
+            'final_articles': min(len(processed), max_articles)
+        })
         
         # Cache désactivé - pas de sauvegarde
         logger.info(f"Cache disabled - not saving {len(processed)} articles")

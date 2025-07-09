@@ -1,5 +1,5 @@
 from google import genai
-from typing import List, Dict
+from typing import List, Dict, Any
 import os
 from loguru import logger
 import json
@@ -13,6 +13,10 @@ class SpecializedPostGenerator:
             
         self.client = genai.Client(api_key=api_key)
         self.model_id = "gemini-2.5-pro"
+        
+        # WebSocket session pour le suivi des progrès
+        self.websocket_session_id = None
+        self.websocket_service = None
         
         # Définir les domaines et leurs spécialités
         self.domains = {
@@ -37,6 +41,19 @@ class SpecializedPostGenerator:
                 'keywords': ['github', 'docker', 'kubernetes', 'devops', 'security', 'startup', 'tech industry']
             }
         }
+    
+    def set_websocket_session(self, session_id: str, websocket_service) -> None:
+        """Configure la session WebSocket pour le suivi des progrès"""
+        self.websocket_session_id = session_id
+        self.websocket_service = websocket_service
+    
+    def _emit_progress(self, progress_data: Dict[str, Any]) -> None:
+        """Émet un événement de progression via WebSocket"""
+        if self.websocket_service and self.websocket_session_id:
+            try:
+                self.websocket_service.update_generation_progress(self.websocket_session_id, progress_data)
+            except Exception as e:
+                logger.debug(f"Error emitting progress: {e}")
         
     def generate_specialized_posts(self, articles: List[Dict]) -> List[Dict]:
         """Génère des posts spécialisés pour chaque domaine ayant suffisamment d'articles"""
@@ -72,11 +89,37 @@ class SpecializedPostGenerator:
             
             logger.info(f"Generating post for domain {domain} with {len(articles)} articles")
             
+            self._emit_progress({
+                'type': 'generation_started',
+                'domain': domain,
+                'articles_count': len(articles)
+            })
+            
             # Utiliser la méthode privée existante
-            return self._generate_domain_post(domain, articles)
+            result = self._generate_domain_post(domain, articles)
+            
+            if result:
+                self._emit_progress({
+                    'type': 'generation_completed',
+                    'domain': domain,
+                    'post_generated': True
+                })
+            else:
+                self._emit_progress({
+                    'type': 'generation_failed',
+                    'domain': domain,
+                    'error': 'Failed to generate post'
+                })
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error in generate_domain_post: {e}")
+            self._emit_progress({
+                'type': 'generation_error',
+                'domain': domain,
+                'error': str(e)
+            })
             return None
     
     def _organize_articles_by_domain(self, articles: List[Dict]) -> Dict[str, List[Dict]]:
