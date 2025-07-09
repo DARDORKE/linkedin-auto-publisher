@@ -275,16 +275,25 @@ Rédige l'article généraliste tech:
         return domain_prompts.get(domain_key, domain_prompts['general'])
     
     def _generate_domain_sources(self, domain_key: str, articles: List[Dict]) -> str:
-        """Génère une section sources pour un domaine spécifique"""
+        """Génère une section sources pour un domaine spécifique avec URLs"""
         domain_name = self.domains[domain_key]['name']
         
         sources_section = f"**SOURCES {domain_name.upper()} :**\n\n"
         
         for i, article in enumerate(articles, 1):
             title = article['title']
-            if len(title) > 60:
-                title = title[:57] + "..."
-            sources_section += f"{i}. {article['source']} - \"{title}\"\n"
+            source = article['source']
+            url = article.get('url', '')
+            
+            # Raccourcir le titre si trop long
+            if len(title) > 55:
+                title = title[:52] + "..."
+            
+            # Format avec URL cliquable
+            if url:
+                sources_section += f"{i}. **{source}** - \"{title}\"\n   🔗 {url}\n\n"
+            else:
+                sources_section += f"{i}. **{source}** - \"{title}\"\n\n"
         
         return sources_section.strip()
     

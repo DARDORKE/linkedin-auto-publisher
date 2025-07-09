@@ -78,6 +78,54 @@ class FullStackDevScraper:
                 "reliability": 10,
                 "domains": ["frontend"]
             },
+            {
+                "name": "Angular Blog",
+                "type": "rss",
+                "url": "https://blog.angular.io/feed",
+                "category": "frontend",
+                "reliability": 10,
+                "domains": ["frontend"]
+            },
+            {
+                "name": "Web.dev",
+                "type": "rss",
+                "url": "https://web.dev/feed.xml",
+                "category": "frontend",
+                "reliability": 10,
+                "domains": ["frontend"]
+            },
+            {
+                "name": "Mozilla Hacks",
+                "type": "rss",
+                "url": "https://hacks.mozilla.org/feed/",
+                "category": "frontend",
+                "reliability": 9,
+                "domains": ["frontend"]
+            },
+            {
+                "name": "Frontend Focus",
+                "type": "rss",
+                "url": "https://frontendfoc.us/rss",
+                "category": "frontend",
+                "reliability": 8,
+                "domains": ["frontend"]
+            },
+            {
+                "name": "Codrops",
+                "type": "rss",
+                "url": "https://tympanus.net/codrops/feed/",
+                "category": "frontend",
+                "reliability": 8,
+                "domains": ["frontend"]
+            },
+            {
+                "name": "CSS Weekly",
+                "type": "rss",
+                "url": "https://css-weekly.com/feed/",
+                "category": "frontend",
+                "reliability": 8,
+                "domains": ["frontend"]
+            },
             
             # Sources backend spécialisées
             {
@@ -126,6 +174,70 @@ class FullStackDevScraper:
                 "url": "http://www.phpweekly.com/feed.xml",
                 "category": "backend",
                 "reliability": 8,
+                "domains": ["backend"]
+            },
+            {
+                "name": "Ruby Weekly",
+                "type": "rss",
+                "url": "https://rubyweekly.com/rss/",
+                "category": "backend",
+                "reliability": 8,
+                "domains": ["backend"]
+            },
+            {
+                "name": "Python Weekly",
+                "type": "rss",
+                "url": "https://www.pythonweekly.com/rss.xml",
+                "category": "backend",
+                "reliability": 8,
+                "domains": ["backend"]
+            },
+            {
+                "name": "Database Weekly",
+                "type": "rss",
+                "url": "https://dbweekly.com/rss/",
+                "category": "backend",
+                "reliability": 8,
+                "domains": ["backend"]
+            },
+            {
+                "name": "AWS News",
+                "type": "rss",
+                "url": "https://aws.amazon.com/about-aws/whats-new/recent/feed/",
+                "category": "backend",
+                "reliability": 9,
+                "domains": ["backend"]
+            },
+            {
+                "name": "Microsoft DevBlogs",
+                "type": "rss",
+                "url": "https://devblogs.microsoft.com/feed/",
+                "category": "backend",
+                "reliability": 9,
+                "domains": ["backend"]
+            },
+            {
+                "name": "Google Cloud Blog",
+                "type": "rss",
+                "url": "https://cloud.google.com/blog/rss/",
+                "category": "backend",
+                "reliability": 9,
+                "domains": ["backend"]
+            },
+            {
+                "name": "Kubernetes Blog",
+                "type": "rss",
+                "url": "https://kubernetes.io/feed.xml",
+                "category": "backend",
+                "reliability": 9,
+                "domains": ["backend"]
+            },
+            {
+                "name": "Docker Blog",
+                "type": "rss",
+                "url": "https://www.docker.com/blog/feed/",
+                "category": "backend",
+                "reliability": 9,
                 "domains": ["backend"]
             },
             
@@ -178,6 +290,86 @@ class FullStackDevScraper:
                 "reliability": 9,
                 "domains": ["ai"]
             },
+            {
+                "name": "Hugging Face Blog",
+                "type": "rss",
+                "url": "https://huggingface.co/blog/feed.xml",
+                "category": "ai",
+                "reliability": 10,
+                "domains": ["ai"]
+            },
+            {
+                "name": "DeepMind Blog",
+                "type": "rss",
+                "url": "https://deepmind.com/blog/rss.xml",
+                "category": "ai",
+                "reliability": 10,
+                "domains": ["ai"]
+            },
+            {
+                "name": "Meta AI Blog",
+                "type": "rss",
+                "url": "https://ai.meta.com/blog/rss/",
+                "category": "ai",
+                "reliability": 9,
+                "domains": ["ai"]
+            },
+            {
+                "name": "MIT CSAIL News",
+                "type": "rss",
+                "url": "https://www.csail.mit.edu/news/rss.xml",
+                "category": "ai",
+                "reliability": 10,
+                "domains": ["ai"]
+            },
+            {
+                "name": "Stanford AI Lab",
+                "type": "rss",
+                "url": "https://ai.stanford.edu/blog/feed.xml",
+                "category": "ai",
+                "reliability": 10,
+                "domains": ["ai"]
+            },
+            {
+                "name": "AI Research Blog",
+                "type": "rss",
+                "url": "https://ai.googleblog.com/feeds/posts/default?alt=rss",
+                "category": "ai",
+                "reliability": 9,
+                "domains": ["ai"]
+            },
+            {
+                "name": "Weights & Biases Blog",
+                "type": "rss",
+                "url": "https://wandb.ai/blog/rss.xml",
+                "category": "ai",
+                "reliability": 8,
+                "domains": ["ai"]
+            },
+            {
+                "name": "Gradient Flow",
+                "type": "rss",
+                "url": "https://gradientflow.com/feed/",
+                "category": "ai",
+                "reliability": 8,
+                "domains": ["ai"]
+            },
+            {
+                "name": "AI/ML Weekly",
+                "type": "rss",
+                "url": "https://aimlweekly.com/feed/",
+                "category": "ai",
+                "reliability": 8,
+                "domains": ["ai"]
+            },
+            {
+                "name": "The Batch (DeepLearning.AI)",
+                "type": "rss",
+                "url": "https://www.deeplearning.ai/the-batch/rss/",
+                "category": "ai",
+                "reliability": 9,
+                "domains": ["ai"]
+            },
             
             # Sources polyvalentes tech
             {
@@ -211,6 +403,54 @@ class FullStackDevScraper:
                 "category": "devops",
                 "reliability": 8,
                 "domains": ["backend", "ai"]
+            },
+            {
+                "name": "TechCrunch",
+                "type": "rss",
+                "url": "https://techcrunch.com/category/startups/feed/",
+                "category": "general",
+                "reliability": 8,
+                "domains": ["frontend", "backend", "ai"]
+            },
+            {
+                "name": "Ars Technica",
+                "type": "rss",
+                "url": "https://feeds.arstechnica.com/arstechnica/index",
+                "category": "general",
+                "reliability": 9,
+                "domains": ["frontend", "backend", "ai"]
+            },
+            {
+                "name": "Wired Tech",
+                "type": "rss",
+                "url": "https://www.wired.com/feed/category/business/tech/rss",
+                "category": "general",
+                "reliability": 8,
+                "domains": ["frontend", "backend", "ai"]
+            },
+            {
+                "name": "MIT Technology Review",
+                "type": "rss",
+                "url": "https://www.technologyreview.com/feed/",
+                "category": "general",
+                "reliability": 10,
+                "domains": ["frontend", "backend", "ai"]
+            },
+            {
+                "name": "IEEE Spectrum",
+                "type": "rss",
+                "url": "https://spectrum.ieee.org/rss",
+                "category": "general",
+                "reliability": 9,
+                "domains": ["frontend", "backend", "ai"]
+            },
+            {
+                "name": "VentureBeat",
+                "type": "rss",
+                "url": "https://venturebeat.com/feed/",
+                "category": "general",
+                "reliability": 7,
+                "domains": ["frontend", "backend", "ai"]
             },
             
             # Sources communautaires

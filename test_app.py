@@ -9,13 +9,13 @@ os.environ['LINKEDIN_EMAIL'] = 'test@example.com'
 os.environ['LINKEDIN_PASSWORD'] = 'test_password'
 
 from loguru import logger
-from src.scraper import TechNewsScraper
+from src.fullstack_scraper import FullStackDevScraper
 from src.database import DatabaseManager
 from src.web_interface import app
 
 def test_scraper():
-    logger.info("Testing scraper...")
-    scraper = TechNewsScraper()
+    logger.info("Testing fullstack scraper...")
+    scraper = FullStackDevScraper()
     # Test avec un seul article pour éviter de spammer
     articles = scraper.scrape_all_sources(max_articles=3)
     logger.info(f"Found {len(articles)} articles")
