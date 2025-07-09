@@ -37,20 +37,14 @@ export default function Dashboard() {
     queryFn: () => postApi.getApproved(),
   });
 
-  const { data: cacheStats } = useQuery({
-    queryKey: ['cache', 'stats'],
-    queryFn: () => domainApi.getCacheStats(),
-  });
-
-  const { data: cacheByDomains } = useQuery({
-    queryKey: ['cache', 'domains'],
-    queryFn: () => domainApi.getCacheByDomains(),
+  const { data: domainsData } = useQuery({
+    queryKey: ['domains'],
+    queryFn: () => domainApi.getDomains(),
   });
 
   const pending = pendingPosts?.data.posts || [];
   const approved = approvedPosts?.data.posts || [];
-  const cache = cacheStats?.data;
-  const domainCache = cacheByDomains?.data;
+  const domains = domainsData?.data.domains || {};
 
   // Données pour le graphique en secteurs
   const pieData = [
@@ -59,11 +53,11 @@ export default function Dashboard() {
   ];
 
   // Données pour le graphique en barres par domaine
-  const domainData = domainCache ? Object.entries(domainCache).map(([domain, stats]) => ({
+  const domainData = Object.entries(domains).map(([domain]) => ({
     domain: domain.charAt(0).toUpperCase() + domain.slice(1),
-    articles: stats.cached_count,
-    sources: stats.sources_count,
-  })) : [];
+    pending: pending.filter(p => p.domain_name === domain).length,
+    approved: approved.filter(p => p.domain_name === domain).length,
+  }));
 
   const StatCard = ({ title, value, icon, color, subtitle, trend }: any) => (
     <Grow in={true} timeout={500}>
@@ -202,22 +196,22 @@ export default function Dashboard() {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Articles en cache"
-              value={cache?.fresh_articles || 0}
+              title="Total posts"
+              value={pending.length + approved.length}
               icon={<Storage />}
               color="#3b82f6"
-              subtitle={`${cache?.total_articles || 0} au total`}
-              trend={-3}
+              subtitle="Posts générés"
+              trend={15}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
-              title="Taux de cache"
-              value={cache ? `${Math.round((cache.fresh_articles / cache.total_articles) * 100)}%` : '0%'}
+              title="Domaines actifs"
+              value={Object.keys(domains).length}
               icon={<Publish />}
               color="#8b5cf6"
-              subtitle="Articles frais"
-              trend={5}
+              subtitle="Domaines configurés"
+              trend={0}
             />
           </Grid>
         </Grid>
@@ -272,7 +266,7 @@ export default function Dashboard() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      Articles par domaine
+                      Posts par domaine
                     </Typography>
                     <IconButton size="small">
                       <MoreVert />
@@ -301,15 +295,27 @@ export default function Dashboard() {
                         }}
                       />
                       <Bar 
-                        dataKey="articles" 
+                        dataKey="pending" 
                         fill="url(#barGradient)" 
                         radius={[4, 4, 0, 0]}
                         animationDuration={1500}
+                        name="En attente"
+                      />
+                      <Bar 
+                        dataKey="approved" 
+                        fill="url(#barGradient2)" 
+                        radius={[4, 4, 0, 0]}
+                        animationDuration={1500}
+                        name="Approuvés"
                       />
                       <defs>
                         <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#0a66c2" />
-                          <stop offset="100%" stopColor="#4791db" />
+                          <stop offset="0%" stopColor="#f59e0b" />
+                          <stop offset="100%" stopColor="#fbbf24" />
+                        </linearGradient>
+                        <linearGradient id="barGradient2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" />
+                          <stop offset="100%" stopColor="#34d399" />
                         </linearGradient>
                       </defs>
                     </BarChart>
@@ -325,7 +331,7 @@ export default function Dashboard() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      État du cache système
+                      État du système
                     </Typography>
                     <IconButton size="small">
                       <MoreVert />
@@ -335,43 +341,46 @@ export default function Dashboard() {
                     <Box>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                         <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                          Articles frais: {cache?.fresh_articles || 0} / {cache?.total_articles || 0}
+                          Posts approuvés: {approved.length} / {pending.length + approved.length}
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                          {cache ? Math.round((cache.fresh_articles / cache.total_articles) * 100) : 0}%
+                          {pending.length + approved.length > 0 ? Math.round((approved.length / (pending.length + approved.length)) * 100) : 0}%
                         </Typography>
                       </Stack>
                       <LinearProgress
                         variant="determinate"
-                        value={cache ? (cache.fresh_articles / cache.total_articles) * 100 : 0}
+                        value={pending.length + approved.length > 0 ? (approved.length / (pending.length + approved.length)) * 100 : 0}
                         sx={{ 
                           height: 12, 
                           borderRadius: 6,
                           backgroundColor: '#e2e8f0',
                           '& .MuiLinearProgress-bar': {
                             borderRadius: 6,
-                            background: 'linear-gradient(90deg, #0a66c2, #4791db)',
+                            background: 'linear-gradient(90deg, #10b981, #34d399)',
                           }
                         }}
                       />
                     </Box>
                     <Box>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 500 }}>
-                        Distribution par domaine
+                        Domaines configurés
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {domainData.map((domain) => (
+                        {Object.entries(domains).map(([key, domain]) => (
                           <Chip
-                            key={domain.domain}
-                            label={`${domain.domain}: ${domain.articles} articles`}
+                            key={key}
+                            label={domain.name}
                             variant="outlined"
                             size="medium"
                             sx={{
                               borderRadius: 2,
                               fontWeight: 500,
+                              borderColor: domain.color,
+                              color: domain.color,
                               '&:hover': {
                                 transform: 'translateY(-1px)',
                                 boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                backgroundColor: `${domain.color}10`,
                               },
                               transition: 'all 0.2s ease-in-out',
                             }}

@@ -64,7 +64,7 @@ class FullStackDevScraper:
                 {"name": "Golang Weekly", "url": "https://golangweekly.com/rss/", "weight": 9},
                 # Sources générales backend
                 {"name": "Docker Blog", "url": "https://www.docker.com/blog/feed/", "weight": 9},
-                {"name": "Real Python", "url": "https://realpython.com/atom.xml", "weight": 9},
+                {"name": "Python Official Blog", "url": "https://blog.python.org/feeds/posts/default", "weight": 10},
                 # Sources supplémentaires (si limite augmentée)
                 {"name": "Symfony Blog", "url": "https://symfony.com/blog.rss", "weight": 9},
                 {"name": "Node.js Medium", "url": "https://medium.com/feed/the-node-js-collection", "weight": 9},
@@ -291,8 +291,8 @@ class FullStackDevScraper:
         # Équilibrer par technologie au lieu de trier seulement par score
         balanced_articles = self._balance_by_technology(unique_articles, domain)
         
-        # Enrichir les top articles
-        self._enrich_top_articles(balanced_articles[:15])
+        # Enrichir tous les articles avec le contenu complet
+        self._enrich_top_articles(balanced_articles)
         
         return balanced_articles
     
@@ -493,27 +493,21 @@ class FullStackDevScraper:
         return final_selection
     
     def _enrich_top_articles(self, articles: List[Dict]):
-        """Enrichit les meilleurs articles avec du contenu"""
-        # Priorité aux articles qui ont besoin d'extraction
-        priority_articles = [a for a in articles if a.get('needs_extraction', False)]
-        other_articles = [a for a in articles if not a.get('needs_extraction', False)]
+        """Enrichit tous les articles avec du contenu complet"""
+        logger.info(f"Enriching {len(articles)} articles with full content extraction")
         
-        # Mélanger pour traiter en priorité mais pas exclusivement
-        ordered_articles = priority_articles[:3] + other_articles[:5]
-        
-        for i, article in enumerate(ordered_articles[:8]):  # Jusqu'à 8 articles
+        # Traiter tous les articles pour extraire le contenu complet
+        for i, article in enumerate(articles):
             try:
-                if not article.get('content') or len(article['content']) < 500 or article.get('needs_extraction', False):
-                    # Extraire le contenu si pas déjà fait
-                    content = self._extract_content(article['url'])
-                    if content:
-                        article['content'] = content
-                        article['extraction_quality'] = 'full'
-                    else:
-                        article['content'] = article.get('summary', '')
-                        article['extraction_quality'] = 'summary_only'
+                # Toujours extraire le contenu complet de l'article
+                content = self._extract_full_content(article['url'])
+                if content:
+                    article['content'] = content
+                    article['extraction_quality'] = 'full'
                 else:
-                    article['extraction_quality'] = 'rss_content'
+                    # Fallback sur le summary si l'extraction échoue
+                    article['content'] = article.get('summary', '')
+                    article['extraction_quality'] = 'summary_only'
                 
                 # Détecter les technologies mentionnées
                 full_text = (article['title'] + ' ' + article['content']).lower()
@@ -525,33 +519,93 @@ class FullStackDevScraper:
                 
                 article['technologies_found'] = list(set(found_techs))[:10]
                 
+                # Log du progrès
+                if (i + 1) % 5 == 0:
+                    logger.info(f"Processed {i + 1}/{len(articles)} articles")
+                
             except Exception as e:
-                logger.debug(f"Error enriching article: {e}")
+                logger.debug(f"Error enriching article {article.get('title', 'Unknown')}: {e}")
                 article['extraction_quality'] = 'error'
+                article['content'] = article.get('summary', '')
     
     def _extract_content(self, url: str) -> Optional[str]:
-        """Extraction de contenu optimisée"""
+        """Extraction de contenu optimisée (legacy)"""
+        return self._extract_full_content(url)
+    
+    def _extract_full_content(self, url: str) -> Optional[str]:
+        """Extraction complète du contenu d'un article avec nettoyage avancé"""
         try:
-            response = requests.get(url, headers=self.headers, timeout=6)
+            response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()
             
-            # Utiliser readability pour extraction
+            # Utiliser readability pour extraction du contenu principal
             doc = Document(response.content)
             content = doc.summary()
             
             # Nettoyer avec BeautifulSoup
             soup = BeautifulSoup(content, 'html.parser')
             
-            # Supprimer les éléments inutiles
-            for tag in soup.find_all(['script', 'style', 'nav', 'aside']):
+            # Supprimer tous les éléments inutiles
+            for tag in soup.find_all(['script', 'style', 'nav', 'aside', 'footer', 'header', 
+                                     'form', 'input', 'button', 'select', 'textarea',
+                                     'iframe', 'embed', 'object', 'applet']):
                 tag.decompose()
             
+            # Supprimer les commentaires HTML
+            for comment in soup.find_all(string=lambda text: isinstance(text, str) and text.strip().startswith('<!--')):
+                comment.extract()
+            
+            # Supprimer les attributs inutiles mais garder la structure
+            for tag in soup.find_all(True):
+                # Garder seulement les attributs essentiels
+                tag.attrs = {}
+            
+            # Extraire le texte avec séparateurs appropriés
             text = soup.get_text(separator=' ', strip=True)
-            return self._clean_text(text)[:3000]
+            
+            # Nettoyage avancé du texte
+            cleaned_text = self._advanced_text_cleaning(text)
+            
+            # Limiter la taille mais permettre beaucoup plus de contenu pour la lecture complète
+            return cleaned_text[:15000]  # Augmenté pour permettre la lecture complète d'articles
             
         except Exception as e:
-            logger.debug(f"Error extracting from {url}: {e}")
+            logger.debug(f"Error extracting full content from {url}: {e}")
             return None
+    
+    def _advanced_text_cleaning(self, text: str) -> str:
+        """Nettoyage avancé du texte extrait"""
+        if not text:
+            return ""
+        
+        # Supprimer les espaces multiples
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Supprimer les retours à la ligne multiples
+        text = re.sub(r'\n+', '\n', text)
+        
+        # Supprimer les caractères de contrôle
+        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+        
+        # Supprimer les caractères Unicode problématiques
+        text = re.sub(r'[\u200b-\u200d\ufeff]', '', text)
+        
+        # Supprimer les patterns de navigation courrants
+        text = re.sub(r'(Skip to main content|Skip to content|Navigation|Menu|Search|Login|Sign up|Subscribe|Newsletter)', '', text, flags=re.IGNORECASE)
+        
+        # Supprimer les patterns de cookies et tracking
+        text = re.sub(r'(This website uses cookies|By continuing to use|Privacy policy|Terms of service|GDPR)', '', text, flags=re.IGNORECASE)
+        
+        # Supprimer les patterns de partage social
+        text = re.sub(r'(Share on|Follow us|Like us|Tweet|Facebook|Twitter|LinkedIn|Reddit)', '', text, flags=re.IGNORECASE)
+        
+        # Supprimer les patterns publicitaires
+        text = re.sub(r'(Advertisement|Sponsored|Promotion|Ad|Ads)', '', text, flags=re.IGNORECASE)
+        
+        # Nettoyer les espaces en début et fin
+        text = text.strip()
+        
+        return text
     
     def _prepare_for_generator(self, articles: List[Dict]) -> List[Dict]:
         """Prépare les articles pour le générateur"""
