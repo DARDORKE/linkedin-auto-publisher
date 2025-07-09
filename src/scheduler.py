@@ -6,7 +6,7 @@ import os
 from src.fullstack_scraper import FullStackDevScraper
 from src.specialized_generator import SpecializedPostGenerator
 from src.database import DatabaseManager
-from src.web_interface import run_web_interface
+from src.api_docs import run_web_interface
 import threading
 
 class PostScheduler:

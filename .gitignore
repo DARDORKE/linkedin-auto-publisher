@@ -43,3 +43,4 @@ build/
 *.egg-info/
 
 .claude
+frontend/node_modules

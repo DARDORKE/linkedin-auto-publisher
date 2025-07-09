@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from src.database import DatabaseManager
 from src.linkedin_publisher import LinkedInPublisher
@@ -9,7 +9,7 @@ import os
 import json
 from datetime import datetime
 
-app = Flask(__name__, template_folder='../templates', static_folder='../static')
+app = Flask(__name__)
 CORS(app)
 
 db = DatabaseManager()
@@ -17,8 +17,18 @@ scraper = None  # Initialize only when needed
 generator = None  # Initialize only when needed
 
 @app.route('/')
-def index():
-    return render_template('index.html')
+def api_info():
+    return jsonify({
+        'message': 'LinkedIn Auto Publisher API',
+        'version': '1.0.0',
+        'frontend_url': 'http://localhost:3000',
+        'endpoints': {
+            'posts': '/api/posts/',
+            'scraping': '/api/scrape/',
+            'domains': '/api/domains',
+            'cache': '/api/cache/'
+        }
+    })
 
 @app.route('/api/posts/pending')
 def get_pending_posts():

@@ -12,7 +12,7 @@ class SpecializedPostGenerator:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
             
         self.client = genai.Client(api_key=api_key)
-        self.model_id = "gemini-2.5-flash"
+        self.model_id = "gemini-2.5-pro"
         
         # Définir les domaines et leurs spécialités
         self.domains = {
