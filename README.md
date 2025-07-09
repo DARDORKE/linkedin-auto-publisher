@@ -54,8 +54,6 @@ Une application complète pour générer et publier automatiquement des posts Li
 2. Créer le fichier `.env`:
 ```bash
 GEMINI_API_KEY=your_gemini_api_key
-LINKEDIN_USERNAME=your_linkedin_username
-LINKEDIN_PASSWORD=your_linkedin_password
 ```
 
 ### Lancement
