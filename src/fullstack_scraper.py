@@ -7,9 +7,12 @@ from typing import List, Dict, Optional
 import re
 from urllib.parse import urljoin, urlparse
 import feedparser
+from src.database import DatabaseManager
 
 class FullStackDevScraper:
-    def __init__(self):
+    def __init__(self, db_manager: DatabaseManager = None):
+        self.db = db_manager or DatabaseManager()
+        self.cache_duration_hours = 6  # Durée de vie du cache en heures
         self.sources = [
             # Sources développement françaises
             {
@@ -514,10 +517,34 @@ class FullStackDevScraper:
             }
         }
         
-    def scrape_all_sources(self, max_articles: int = 40) -> List[Dict]:
-        all_articles = []
+    def scrape_all_sources(self, max_articles: int = 40, use_cache: bool = True) -> List[Dict]:
+        # Nettoyer le cache expiré
+        self.db.clear_expired_cache()
         
-        for source in self.sources:
+        all_articles = []
+        sources_to_scrape = []
+        
+        if use_cache:
+            # Récupérer tous les articles en cache
+            cached_articles = self.db.get_cached_articles()
+            logger.info(f"Found {len(cached_articles)} cached articles")
+            all_articles.extend(cached_articles)
+            
+            # Identifier les sources qui ont des articles en cache
+            cached_sources = set(article['source'] for article in cached_articles)
+            
+            # Déterminer quelles sources doivent être scrapées
+            for source in self.sources:
+                if source['name'] not in cached_sources:
+                    sources_to_scrape.append(source)
+        else:
+            sources_to_scrape = self.sources
+        
+        logger.info(f"Will scrape {len(sources_to_scrape)} sources (out of {len(self.sources)} total)")
+        
+        # Scraper les sources nécessaires
+        new_articles = []
+        for source in sources_to_scrape:
             try:
                 if source['type'] == 'rss':
                     articles = self._scrape_rss(source)
@@ -526,12 +553,18 @@ class FullStackDevScraper:
                     
                 # Filtrer par pertinence technologique
                 relevant_articles = self._filter_tech_articles(articles)
+                new_articles.extend(relevant_articles)
                 all_articles.extend(relevant_articles)
                 logger.info(f"Scraped {len(relevant_articles)} tech articles from {source['name']}")
                 time.sleep(1)
                 
             except Exception as e:
                 logger.error(f"Error scraping {source['name']}: {e}")
+        
+        # Sauvegarder les nouveaux articles dans le cache
+        if new_articles and use_cache:
+            self.db.save_articles_to_cache(new_articles, self.cache_duration_hours)
+            logger.info(f"Saved {len(new_articles)} new articles to cache")
         
         # Filtrer par fraîcheur (articles de moins de 3 jours)
         fresh_articles = self._filter_by_freshness(all_articles, max_days=3)
@@ -934,8 +967,11 @@ class FullStackDevScraper:
             
         return trending
     
-    def scrape_domain_sources(self, domain: str, max_articles: int = 50) -> List[Dict]:
+    def scrape_domain_sources(self, domain: str, max_articles: int = 50, use_cache: bool = True) -> List[Dict]:
         """Scrape seulement les sources d'un domaine spécifique"""
+        # Nettoyer le cache expiré
+        self.db.clear_expired_cache()
+        
         domain_articles = []
         
         # Mapper les domaines aux catégories de sources
@@ -948,6 +984,7 @@ class FullStackDevScraper:
         # Filtrer les sources par domaine
         target_categories = domain_categories.get(domain, [])
         domain_sources = []
+        domain_source_names = []
         
         for source in self.sources:
             source_category = source.get('category', '')
@@ -956,11 +993,54 @@ class FullStackDevScraper:
             # Inclure si la catégorie correspond ou si le domaine est dans les domaines de la source
             if source_category in target_categories or domain in source_domains:
                 domain_sources.append(source)
+                domain_source_names.append(source['name'])
         
-        logger.info(f"Scraping {len(domain_sources)} sources for domain {domain}")
+        logger.info(f"Domain {domain} has {len(domain_sources)} relevant sources")
         
-        # Scraper uniquement les sources du domaine
-        for source in domain_sources:
+        if use_cache:
+            # Récupérer TOUS les articles en cache pour ce domaine
+            cached_articles = self.db.get_cached_articles(source_names=domain_source_names)
+            logger.info(f"Found {len(cached_articles)} cached articles for domain {domain}")
+            
+            # Filtrer et scorer les articles du cache immédiatement
+            fresh_cached = self._filter_by_freshness(cached_articles, max_days=3)
+            unique_cached = self._deduplicate_articles(fresh_cached)
+            scored_cached = self._score_domain_articles(unique_cached, domain)
+            
+            # Trier et prendre les meilleurs articles du cache
+            sorted_cached = sorted(scored_cached, key=lambda x: x['relevance_score'], reverse=True)
+            
+            logger.info(f"Cache has {len(sorted_cached)} scored articles for domain {domain}")
+            
+            # Si on a déjà assez d'articles de qualité dans le cache, on retourne directement
+            if len(sorted_cached) >= max_articles:
+                logger.info(f"Cache has enough articles ({len(sorted_cached)} >= {max_articles}), skipping scraping")
+                return sorted_cached[:max_articles]
+            
+            # Sinon, on ajoute les articles du cache et on scrape pour compléter
+            domain_articles.extend(cached_articles)
+            
+            # On calcule combien d'articles supplémentaires on a besoin
+            articles_needed = max(10, max_articles - len(sorted_cached))  # Au moins 10 articles frais
+            logger.info(f"Need {articles_needed} more articles, will scrape some sources")
+            
+            # Identifier les sources qui ont le moins d'articles récents en cache
+            source_article_counts = {}
+            for source in domain_sources:
+                source_article_counts[source['name']] = sum(1 for a in cached_articles if a['source'] == source['name'])
+            
+            # Trier les sources par nombre d'articles en cache (moins = priorité)
+            sources_to_scrape = sorted(domain_sources, key=lambda s: source_article_counts.get(s['name'], 0))
+            # Limiter le nombre de sources à scraper
+            sources_to_scrape = sources_to_scrape[:max(3, len(sources_to_scrape) // 4)]  # Max 25% des sources
+        else:
+            sources_to_scrape = domain_sources
+        
+        logger.info(f"Will scrape {len(sources_to_scrape)} sources for domain {domain}")
+        
+        # Scraper uniquement les sources nécessaires
+        new_articles = []
+        for source in sources_to_scrape:
             try:
                 if source['type'] == 'rss':
                     articles = self._scrape_rss(source)
@@ -969,12 +1049,18 @@ class FullStackDevScraper:
                     
                 # Filtrer par pertinence technologique
                 relevant_articles = self._filter_tech_articles(articles)
+                new_articles.extend(relevant_articles)
                 domain_articles.extend(relevant_articles)
                 logger.info(f"Scraped {len(relevant_articles)} tech articles from {source['name']}")
                 time.sleep(1)
                 
             except Exception as e:
                 logger.error(f"Error scraping {source['name']}: {e}")
+        
+        # Sauvegarder les nouveaux articles dans le cache
+        if new_articles and use_cache:
+            self.db.save_articles_to_cache(new_articles, self.cache_duration_hours)
+            logger.info(f"Saved {len(new_articles)} new articles to cache for domain {domain}")
         
         # Filtrer par fraîcheur (articles de moins de 3 jours)
         fresh_articles = self._filter_by_freshness(domain_articles, max_days=3)

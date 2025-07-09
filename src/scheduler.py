@@ -11,9 +11,9 @@ import threading
 
 class PostScheduler:
     def __init__(self):
-        self.scraper = FullStackDevScraper()
-        self.generator = SpecializedPostGenerator()
         self.db = DatabaseManager()
+        self.scraper = FullStackDevScraper(db_manager=self.db)
+        self.generator = SpecializedPostGenerator()
         self.interval_hours = int(os.getenv('SCRAPING_INTERVAL_HOURS', 6))
         self.max_articles = int(os.getenv('MAX_ARTICLES_PER_SCRAPE', 40))
         self.running = False

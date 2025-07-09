@@ -88,19 +88,23 @@ def scrape_domain(domain):
         if domain not in valid_domains:
             return jsonify({'success': False, 'message': f'Domaine invalide. Domaines valides: {valid_domains}'}), 400
         
-        logger.info(f"Starting manual scraping for domain: {domain}")
+        # Récupérer le paramètre force_refresh
+        data = request.get_json() or {}
+        force_refresh = data.get('force_refresh', False)
+        
+        logger.info(f"Starting manual scraping for domain: {domain}, force_refresh: {force_refresh}")
         
         # Initialize scraper if not already done
         global scraper
         if scraper is None:
-            scraper = FullStackDevScraper()
+            scraper = FullStackDevScraper(db_manager=db)
         
         # Scraper selon le domaine sélectionné
         if domain == 'all':
-            articles = scraper.scrape_all_sources(max_articles=100)
+            articles = scraper.scrape_all_sources(max_articles=100, use_cache=not force_refresh)
         else:
             # Scraper seulement les sources du domaine choisi
-            articles = scraper.scrape_domain_sources(domain, max_articles=50)
+            articles = scraper.scrape_domain_sources(domain, max_articles=50, use_cache=not force_refresh)
         
         # Trier par score de pertinence
         articles = sorted(articles, key=lambda x: x.get('relevance_score', 0), reverse=True)
@@ -111,7 +115,8 @@ def scrape_domain(domain):
             'success': True,
             'articles': articles[:50],  # Limiter pour l'interface
             'total_count': len(articles),
-            'domain': domain
+            'domain': domain,
+            'from_cache': not force_refresh
         })
         
     except Exception as e:
@@ -191,6 +196,50 @@ def get_domains():
     }
     
     return jsonify({'domains': domains})
+
+@app.route('/api/cache/stats')
+def get_cache_stats():
+    """Retourne les statistiques du cache d'articles"""
+    stats = db.get_cache_stats()
+    return jsonify(stats)
+
+@app.route('/api/cache/domains')
+def get_cache_by_domains():
+    """Retourne le nombre d'articles en cache par domaine"""
+    try:
+        # Initialize scraper if needed
+        global scraper
+        if scraper is None:
+            scraper = FullStackDevScraper(db_manager=db)
+        
+        domain_stats = {}
+        for domain in ['frontend', 'backend', 'ai']:
+            # Obtenir les sources du domaine
+            domain_sources = []
+            domain_categories = {
+                'frontend': ['frontend', 'dev_fr', 'community'],
+                'backend': ['backend', 'dev_fr', 'devops', 'enterprise', 'community'],
+                'ai': ['ai', 'dev_fr', 'community'],
+            }
+            
+            target_categories = domain_categories.get(domain, [])
+            for source in scraper.sources:
+                source_category = source.get('category', '')
+                source_domains = source.get('domains', [])
+                if source_category in target_categories or domain in source_domains:
+                    domain_sources.append(source['name'])
+            
+            # Compter les articles en cache pour ce domaine
+            cached_articles = db.get_cached_articles(source_names=domain_sources)
+            domain_stats[domain] = {
+                'cached_count': len(cached_articles),
+                'sources_count': len(domain_sources)
+            }
+        
+        return jsonify(domain_stats)
+    except Exception as e:
+        logger.error(f"Error getting cache stats by domain: {e}")
+        return jsonify({})
 
 def run_web_interface():
     port = int(os.getenv('FLASK_PORT', 5000))

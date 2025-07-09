@@ -256,16 +256,33 @@ async function loadDomains() {
     container.innerHTML = '<div class="loading">Chargement des domaines...</div>';
     
     try {
-        const response = await fetch('/api/domains');
-        const data = await response.json();
+        // Charger les domaines et les stats du cache en parallèle
+        const [domainsResponse, cacheResponse] = await Promise.all([
+            fetch('/api/domains'),
+            fetch('/api/cache/domains')
+        ]);
         
-        container.innerHTML = Object.entries(data.domains).map(([key, domain]) => `
-            <div class="domain-card" onclick="selectDomain('${key}')">
-                <div class="domain-name">${domain.name}</div>
-                <div class="domain-description">${domain.description}</div>
-                <div class="domain-color" style="background-color: ${domain.color}"></div>
-            </div>
-        `).join('');
+        const domainsData = await domainsResponse.json();
+        const cacheData = await cacheResponse.json();
+        
+        container.innerHTML = Object.entries(domainsData.domains).map(([key, domain]) => {
+            const cacheInfo = cacheData[key];
+            const hasCachedArticles = cacheInfo && cacheInfo.cached_count > 0;
+            const cacheIndicator = hasCachedArticles 
+                ? `<div class="cache-indicator" title="${cacheInfo.cached_count} articles en cache">
+                     <span style="color: #28a745;">● ${cacheInfo.cached_count}</span>
+                   </div>` 
+                : '';
+            
+            return `
+                <div class="domain-card" onclick="selectDomain('${key}')">
+                    ${cacheIndicator}
+                    <div class="domain-name">${domain.name}</div>
+                    <div class="domain-description">${domain.description}</div>
+                    <div class="domain-color" style="background-color: ${domain.color}"></div>
+                </div>
+            `;
+        }).join('');
     } catch (error) {
         container.innerHTML = '<div class="error">Erreur lors du chargement des domaines</div>';
     }
@@ -287,7 +304,7 @@ async function selectDomain(domain) {
     await scrapeDomain(domain);
 }
 
-async function scrapeDomain(domain) {
+async function scrapeDomain(domain, forceRefresh = false) {
     const articlesSection = document.getElementById('articles-section');
     const container = document.getElementById('articles-container');
     
@@ -295,13 +312,20 @@ async function scrapeDomain(domain) {
     container.innerHTML = '<div class="loading">Scraping en cours...</div>';
     
     try {
-        const response = await fetch(`/api/scrape/${domain}`, { method: 'POST' });
+        const response = await fetch(`/api/scrape/${domain}`, { 
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ force_refresh: forceRefresh })
+        });
         const data = await response.json();
         
         if (data.success) {
             scrapedArticles = data.articles;
             displayArticles(scrapedArticles);
-            showMessage(`${data.total_count} articles trouvés pour ${domain}`, 'success');
+            const cacheInfo = data.from_cache ? ' (depuis le cache)' : '';
+            showMessage(`${data.total_count} articles trouvés pour ${domain}${cacheInfo}`, 'success');
         } else {
             container.innerHTML = `<div class="error">Erreur: ${data.message}</div>`;
         }
