@@ -179,7 +179,51 @@ class DatabaseManager:
         query = query.filter(CachedArticle.published >= three_days_ago)
         
         articles = query.all()
-        return [article.to_dict() for article in articles]
+        
+        # Adapter au format attendu par le nouveau scraper
+        adapted_articles = []
+        for article in articles:
+            adapted = {
+                'title': article.title,
+                'url': article.url,
+                'source': article.source,
+                'source_weight': article.source_reliability or 5,  # Utiliser reliability comme weight
+                'published': article.published,
+                'summary': article.summary or '',
+                'content': '',  # Sera enrichi si nécessaire
+                'scraped_at': article.scraped_at,
+                'tags': [],
+                'relevance_score': article.relevance_score or 0,
+                'domain': self._infer_domain_from_source(article.source),  # Inférer le domaine
+                # Métadonnées pour compatibilité
+                'category': article.source_category,
+                'reliability': article.source_reliability,
+                'domains': json.loads(article.source_domains) if article.source_domains else [],
+                'domain_matches': article.domain_matches or 0
+            }
+            adapted_articles.append(adapted)
+        
+        return adapted_articles
+    
+    def _infer_domain_from_source(self, source_name: str) -> str:
+        """Infère le domaine à partir du nom de la source"""
+        source_lower = source_name.lower()
+        
+        # Frontend sources
+        if any(keyword in source_lower for keyword in ['css', 'react', 'vue', 'angular', 'frontend', 'web.dev', 'smashing']):
+            return 'frontend'
+        
+        # Backend sources  
+        elif any(keyword in source_lower for keyword in ['node', 'go', 'rust', 'django', 'aws', 'docker', 'kubernetes', 'python']):
+            return 'backend'
+        
+        # AI sources
+        elif any(keyword in source_lower for keyword in ['openai', 'ai', 'hugging', 'google ai', 'anthropic', 'machine learning', 'data science']):
+            return 'ai'
+        
+        # General tech sources
+        else:
+            return 'general'
     
     def save_articles_to_cache(self, articles: list, cache_duration_hours: int = 6):
         """Sauvegarde une liste d'articles dans le cache"""
@@ -189,25 +233,44 @@ class DatabaseManager:
             # Vérifier si l'article existe déjà
             existing = self.session.query(CachedArticle).filter_by(url=article['url']).first()
             
+            # Extraire les données selon le nouveau format
+            if 'content' in article and isinstance(article['content'], dict):
+                # Nouveau format avec structure content
+                summary = article['content'].get('summary', article.get('summary', ''))
+                category = article.get('domain', article.get('category', 'general'))
+                reliability = article.get('source_weight', article.get('reliability', 5))
+                domains = article.get('metadata', {}).get('technologies', article.get('domains', []))
+                if isinstance(domains, list):
+                    domains = domains[:5]  # Limiter à 5 technologies
+            else:
+                # Format classique
+                summary = article.get('summary', '')
+                category = article.get('category', article.get('domain', 'general'))
+                reliability = article.get('reliability', article.get('source_weight', 5))
+                domains = article.get('domains', [])
+            
             if existing:
                 # Mettre à jour l'article existant
                 existing.title = article['title']
-                existing.summary = article.get('summary', '')
+                existing.summary = summary
                 existing.relevance_score = article.get('relevance_score', 0)
                 existing.domain_matches = article.get('domain_matches', 0)
                 existing.scraped_at = article.get('scraped_at', datetime.now())
                 existing.cache_expires_at = cache_expiry
+                existing.source_category = category
+                existing.source_reliability = reliability
+                existing.source_domains = json.dumps(domains)
             else:
                 # Créer un nouvel article en cache
                 cached_article = CachedArticle(
                     url=article['url'],
                     title=article['title'],
                     source=article['source'],
-                    source_category=article.get('category'),
-                    source_reliability=article.get('reliability'),
-                    source_domains=json.dumps(article.get('domains', [])),
-                    published=article.get('published'),
-                    summary=article.get('summary', ''),
+                    source_category=category,
+                    source_reliability=reliability,
+                    source_domains=json.dumps(domains),
+                    published=article.get('published', datetime.now()),
+                    summary=summary,
                     relevance_score=article.get('relevance_score', 0),
                     domain_matches=article.get('domain_matches', 0),
                     scraped_at=article.get('scraped_at', datetime.now()),
@@ -215,7 +278,12 @@ class DatabaseManager:
                 )
                 self.session.add(cached_article)
         
-        self.session.commit()
+        try:
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            print(f"Error saving articles to cache: {e}")
+            # Ne pas faire échouer le scraping pour des erreurs de cache
     
     def clear_expired_cache(self):
         """Nettoie les articles expirés du cache"""

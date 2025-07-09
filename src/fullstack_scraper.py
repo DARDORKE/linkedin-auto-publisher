@@ -1,1285 +1,474 @@
+"""
+Scraper optimisé pour récupérer des articles tech de qualité
+Version simplifiée et performante
+"""
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from loguru import logger
 import time
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set, Tuple
 import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 import feedparser
-import signal
-from contextlib import contextmanager
 from src.database import DatabaseManager
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
+from readability import Document
 
 class FullStackDevScraper:
+    """Scraper optimisé pour les articles de développement fullstack"""
+    
     def __init__(self, db_manager: DatabaseManager = None):
         self.db = db_manager or DatabaseManager()
-        self.cache_duration_hours = 6  # Durée de vie du cache en heures
-        self.request_timeout = 30  # Timeout pour les requêtes HTTP
-        self.max_retries = 2  # Nombre maximum de tentatives
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        self.sources = [
-            # Sources développement françaises
-            {
-                "name": "Journal du Hacker",
-                "type": "rss",
-                "url": "https://www.journalduhacker.net/rss",
-                "category": "dev_fr",
-                "reliability": 8,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "Grafikart",
-                "type": "rss",
-                "url": "https://grafikart.fr/tutoriels.rss",
-                "category": "dev_fr",
-                "reliability": 9,
-                "domains": ["frontend", "backend"]
-            },
-            {
-                "name": "Développez.com",
-                "type": "rss",
-                "url": "https://www.developpez.com/index/rss",
-                "category": "dev_fr",
-                "reliability": 8,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            
-            # Sources frontend spécialisées
-            {
-                "name": "CSS-Tricks",
-                "type": "rss",
-                "url": "https://css-tricks.com/feed/",
-                "category": "frontend",
-                "reliability": 9,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "A List Apart",
-                "type": "rss",
-                "url": "https://alistapart.com/main/feed/",
-                "category": "frontend",
-                "reliability": 10,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "Smashing Magazine",
-                "type": "rss",
-                "url": "https://www.smashingmagazine.com/feed/",
-                "category": "frontend",
-                "reliability": 9,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "React Blog",
-                "type": "rss",
-                "url": "https://react.dev/rss.xml",
-                "category": "frontend",
-                "reliability": 10,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "Vue.js News",
-                "type": "rss",
-                "url": "https://news.vuejs.org/rss.xml",
-                "category": "frontend",
-                "reliability": 10,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "Angular Blog",
-                "type": "rss",
-                "url": "https://blog.angular.io/feed",
-                "category": "frontend",
-                "reliability": 10,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "Web.dev",
-                "type": "rss",
-                "url": "https://web.dev/feed.xml",
-                "category": "frontend",
-                "reliability": 10,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "Mozilla Hacks",
-                "type": "rss",
-                "url": "https://hacks.mozilla.org/feed/",
-                "category": "frontend",
-                "reliability": 9,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "Frontend Focus",
-                "type": "rss",
-                "url": "https://frontendfoc.us/rss",
-                "category": "frontend",
-                "reliability": 8,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "Codrops",
-                "type": "rss",
-                "url": "https://tympanus.net/codrops/feed/",
-                "category": "frontend",
-                "reliability": 8,
-                "domains": ["frontend"]
-            },
-            {
-                "name": "CSS Weekly",
-                "type": "rss",
-                "url": "https://css-weekly.com/feed/",
-                "category": "frontend",
-                "reliability": 8,
-                "domains": ["frontend"]
-            },
-            
-            # Sources backend spécialisées
-            {
-                "name": "Node.js Blog",
-                "type": "rss",
-                "url": "https://nodejs.org/en/feed/blog.xml",
-                "category": "backend",
-                "reliability": 10,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Django News",
-                "type": "rss",
-                "url": "https://django-news.com/issues.rss",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Spring Blog",
-                "type": "rss",
-                "url": "https://spring.io/blog.atom",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Go Dev Blog",
-                "type": "rss",
-                "url": "https://go.dev/blog/feed.atom",
-                "category": "backend",
-                "reliability": 10,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Rust Blog",
-                "type": "rss",
-                "url": "https://blog.rust-lang.org/feed.xml",
-                "category": "backend",
-                "reliability": 10,
-                "domains": ["backend"]
-            },
-            {
-                "name": "PHP.net News",
-                "type": "rss",
-                "url": "https://www.php.net/feed.atom",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Ruby Weekly",
-                "type": "rss",
-                "url": "https://rubyweekly.com/rss/",
-                "category": "backend",
-                "reliability": 8,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Real Python",
-                "type": "rss",
-                "url": "https://realpython.com/atom.xml",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Database Weekly",
-                "type": "rss",
-                "url": "https://dbweekly.com/rss/",
-                "category": "backend",
-                "reliability": 8,
-                "domains": ["backend"]
-            },
-            {
-                "name": "AWS News",
-                "type": "rss",
-                "url": "https://aws.amazon.com/about-aws/whats-new/recent/feed/",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Microsoft DevBlogs",
-                "type": "rss",
-                "url": "https://devblogs.microsoft.com/feed/",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Google Cloud Blog",
-                "type": "rss",
-                "url": "https://cloud.google.com/blog/rss",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Kubernetes Blog",
-                "type": "rss",
-                "url": "https://kubernetes.io/feed.xml",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            {
-                "name": "Docker Blog",
-                "type": "rss",
-                "url": "https://www.docker.com/blog/feed/",
-                "category": "backend",
-                "reliability": 9,
-                "domains": ["backend"]
-            },
-            
-            # Sources IA et ML
-            {
-                "name": "OpenAI Blog",
-                "type": "rss",
-                "url": "https://openai.com/news/rss.xml",
-                "category": "ai",
-                "reliability": 10,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Google AI Blog",
-                "type": "rss",
-                "url": "https://research.google/blog/rss/",
-                "category": "ai",
-                "reliability": 10,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Anthropic News",
-                "type": "rss",
-                "url": "https://rsshub.app/anthropic/news",
-                "category": "ai",
-                "reliability": 10,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Towards Data Science",
-                "type": "rss",
-                "url": "https://towardsdatascience.com/feed",
-                "category": "ai",
-                "reliability": 8,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Machine Learning Mastery",
-                "type": "rss",
-                "url": "https://machinelearningmastery.com/feed/",
-                "category": "ai",
-                "reliability": 8,
-                "domains": ["ai"]
-            },
-            {
-                "name": "arXiv ML Updates",
-                "type": "rss",
-                "url": "https://rss.arxiv.org/rss/cs.LG",
-                "category": "ai",
-                "reliability": 9,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Hugging Face Blog",
-                "type": "rss",
-                "url": "https://huggingface.co/blog/feed.xml",
-                "category": "ai",
-                "reliability": 10,
-                "domains": ["ai"]
-            },
-            {
-                "name": "DeepMind Blog",
-                "type": "rss",
-                "url": "https://deepmind.com/blog/rss.xml",
-                "category": "ai",
-                "reliability": 10,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Meta AI Blog",
-                "type": "rss",
-                "url": "https://research.facebook.com/feed/",
-                "category": "ai",
-                "reliability": 9,
-                "domains": ["ai"]
-            },
-            {
-                "name": "MIT CSAIL News",
-                "type": "rss",
-                "url": "https://news.mit.edu/rss/research",
-                "category": "ai",
-                "reliability": 10,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Stanford AI Lab",
-                "type": "rss",
-                "url": "https://ai.stanford.edu/blog/feed.xml",
-                "category": "ai",
-                "reliability": 10,
-                "domains": ["ai"]
-            },
-            {
-                "name": "AI Research Blog",
-                "type": "rss",
-                "url": "https://research.google/blog/rss/",
-                "category": "ai",
-                "reliability": 9,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Weights & Biases Blog",
-                "type": "rss",
-                "url": "https://wandb.ai/blog/rss.xml",
-                "category": "ai",
-                "reliability": 8,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Gradient Flow",
-                "type": "rss",
-                "url": "https://gradientflow.com/feed/",
-                "category": "ai",
-                "reliability": 8,
-                "domains": ["ai"]
-            },
-            {
-                "name": "AI/ML Weekly",
-                "type": "rss",
-                "url": "https://aimlweekly.com/feed/",
-                "category": "ai",
-                "reliability": 8,
-                "domains": ["ai"]
-            },
-            {
-                "name": "The Batch (DeepLearning.AI)",
-                "type": "rss",
-                "url": "https://www.deeplearning.ai/the-batch/rss/",
-                "category": "ai",
-                "reliability": 9,
-                "domains": ["ai"]
-            },
-            
-            # Sources polyvalentes tech
-            {
-                "name": "GitHub Blog",
-                "type": "rss",
-                "url": "https://github.blog/feed/",
-                "category": "devtools",
-                "reliability": 9,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "Stack Overflow Blog",
-                "type": "rss",
-                "url": "https://stackoverflow.blog/feed/",
-                "category": "devtools",
-                "reliability": 8,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "InfoQ",
-                "type": "rss",
-                "url": "https://www.infoq.com/feed/",
-                "category": "enterprise",
-                "reliability": 9,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "The New Stack",
-                "type": "rss",
-                "url": "https://thenewstack.io/feed/",
-                "category": "devops",
-                "reliability": 8,
-                "domains": ["backend", "ai"]
-            },
-            {
-                "name": "TechCrunch",
-                "type": "rss",
-                "url": "https://techcrunch.com/category/startups/feed/",
-                "category": "general",
-                "reliability": 8,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "Ars Technica",
-                "type": "rss",
-                "url": "https://feeds.arstechnica.com/arstechnica/index",
-                "category": "general",
-                "reliability": 9,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "TechCrunch",
-                "type": "rss",
-                "url": "https://techcrunch.com/feed/",
-                "category": "general",
-                "reliability": 8,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "MIT Technology Review",
-                "type": "rss",
-                "url": "https://www.technologyreview.com/feed/",
-                "category": "general",
-                "reliability": 10,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "IEEE Spectrum",
-                "type": "rss",
-                "url": "https://spectrum.ieee.org/rss",
-                "category": "general",
-                "reliability": 9,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            {
-                "name": "VentureBeat",
-                "type": "rss",
-                "url": "https://venturebeat.com/feed/",
-                "category": "general",
-                "reliability": 7,
-                "domains": ["frontend", "backend", "ai"]
-            },
-            
-            # Sources communautaires
-            {
-                "name": "Dev.to - JavaScript",
-                "type": "rss",
-                "url": "https://dev.to/feed/tag/javascript",
-                "category": "community",
-                "reliability": 7,
-                "domains": ["frontend", "backend"]
-            },
-            {
-                "name": "Dev.to - Python",
-                "type": "rss",
-                "url": "https://dev.to/feed/tag/python",
-                "category": "community",
-                "reliability": 7,
-                "domains": ["backend", "ai"]
-            },
-            {
-                "name": "Dev.to - Machine Learning",
-                "type": "rss",
-                "url": "https://dev.to/feed/tag/machinelearning",
-                "category": "community",
-                "reliability": 7,
-                "domains": ["ai"]
-            },
-            {
-                "name": "Hacker News",
-                "type": "web",
-                "url": "https://news.ycombinator.com/",
-                "selector": ".athing",
-                "title_selector": ".titleline > a",
-                "score_selector": ".score",
-                "category": "community",
-                "reliability": 8,
-                "domains": ["frontend", "backend", "ai"]
-            }
-        ]
+        self.cache_duration_hours = 12
+        self.request_timeout = 8
+        self.max_retries = 1
         
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         
-        # Technologies par domaine
-        self.tech_keywords = {
-            'frontend': {
-                'high': ['javascript', 'typescript', 'react', 'vue', 'angular', 'svelte', 'css', 'html', 'nextjs', 'nuxtjs', 'remix'],
-                'medium': ['webpack', 'vite', 'tailwind', 'sass', 'responsive', 'pwa', 'webcomponents', 'solid', 'astro'],
-                'tools': ['npm', 'yarn', 'pnpm', 'eslint', 'prettier', 'jest', 'cypress', 'playwright']
-            },
-            'backend': {
-                'high': ['nodejs', 'python', 'java', 'go', 'rust', 'php', 'csharp', 'dotnet', 'django', 'fastapi', 'express', 'spring'],
-                'medium': ['api', 'rest', 'graphql', 'grpc', 'microservices', 'serverless', 'lambda', 'kubernetes', 'docker'],
-                'tools': ['mongodb', 'postgresql', 'mysql', 'redis', 'elasticsearch', 'kafka', 'rabbitmq', 'nginx']
-            },
-            'ai': {
-                'high': ['ai', 'ml', 'machinelearning', 'deeplearning', 'llm', 'gpt', 'transformers', 'pytorch', 'tensorflow'],
-                'medium': ['nlp', 'computervision', 'reinforcement', 'chatbot', 'embedding', 'vectordb', 'langchain', 'openai'],
-                'tools': ['jupyter', 'pandas', 'numpy', 'scikit-learn', 'huggingface', 'anthropic', 'claude', 'gemini']
-            }
-        }
+        # Sources de qualité par domaine
+        self._init_quality_sources()
         
+        # Mots-clés pour la pertinence
+        self.domain_keywords = {
+            'frontend': ['react', 'vue', 'angular', 'svelte', 'css', 'javascript', 'typescript', 
+                        'nextjs', 'nuxtjs', 'tailwind', 'webpack', 'vite'],
+            'backend': ['nodejs', 'python', 'java', 'go', 'rust', 'api', 'database', 'docker', 
+                       'kubernetes', 'microservices', 'serverless', 'redis', 'postgresql'],
+            'ai': ['ai', 'ml', 'llm', 'gpt', 'transformer', 'neural', 'deep learning', 
+                  'pytorch', 'tensorflow', 'langchain', 'huggingface', 'openai']
+        }
+    
+    def _init_quality_sources(self):
+        """Initialise les sources de qualité par domaine"""
+        self.sources = {
+            'frontend': [
+                {"name": "CSS-Tricks", "url": "https://css-tricks.com/feed/", "weight": 10},
+                {"name": "Smashing Magazine", "url": "https://www.smashingmagazine.com/feed/", "weight": 9},
+                {"name": "Web.dev", "url": "https://web.dev/feed.xml", "weight": 10},
+                {"name": "React Blog", "url": "https://react.dev/rss.xml", "weight": 10},
+                {"name": "Vue.js News", "url": "https://news.vuejs.org/rss.xml", "weight": 9},
+                {"name": "Angular Blog", "url": "https://blog.angular.io/feed", "weight": 9},
+                {"name": "Frontend Focus", "url": "https://frontendfoc.us/rss", "weight": 8},
+                {"name": "A List Apart", "url": "https://alistapart.com/main/feed/", "weight": 9},
+            ],
+            'backend': [
+                {"name": "Node.js Blog", "url": "https://nodejs.org/en/feed/blog.xml", "weight": 10},
+                {"name": "Go Dev Blog", "url": "https://go.dev/blog/feed.atom", "weight": 10},
+                {"name": "Rust Blog", "url": "https://blog.rust-lang.org/feed.xml", "weight": 10},
+                {"name": "Django News", "url": "https://django-news.com/issues.rss", "weight": 9},
+                {"name": "AWS News", "url": "https://aws.amazon.com/about-aws/whats-new/recent/feed/", "weight": 8},
+                {"name": "Docker Blog", "url": "https://www.docker.com/blog/feed/", "weight": 9},
+                {"name": "Kubernetes Blog", "url": "https://kubernetes.io/feed.xml", "weight": 9},
+                {"name": "Real Python", "url": "https://realpython.com/atom.xml", "weight": 9},
+            ],
+            'ai': [
+                {"name": "OpenAI Blog", "url": "https://openai.com/news/rss.xml", "weight": 10},
+                {"name": "Hugging Face Blog", "url": "https://huggingface.co/blog/feed.xml", "weight": 10},
+                {"name": "Google AI Blog", "url": "https://research.google/blog/rss/", "weight": 10},
+                {"name": "Anthropic News", "url": "https://rsshub.app/anthropic/news", "weight": 10},
+                {"name": "Towards Data Science", "url": "https://towardsdatascience.com/feed", "weight": 7},
+                {"name": "Machine Learning Mastery", "url": "https://machinelearningmastery.com/feed/", "weight": 8},
+                {"name": "The Batch", "url": "https://www.deeplearning.ai/the-batch/rss/", "weight": 9},
+            ],
+            'general': [
+                {"name": "GitHub Blog", "url": "https://github.blog/feed/", "weight": 9},
+                {"name": "Stack Overflow Blog", "url": "https://stackoverflow.blog/feed/", "weight": 8},
+                {"name": "InfoQ", "url": "https://www.infoq.com/feed/", "weight": 9},
+                {"name": "The New Stack", "url": "https://thenewstack.io/feed/", "weight": 8},
+                {"name": "Dev.to - Top", "url": "https://dev.to/feed", "weight": 7},
+            ]
+        }
+    
     def scrape_all_sources(self, max_articles: int = 40, use_cache: bool = True) -> List[Dict]:
+        """
+        Scrape toutes les sources et retourne les meilleurs articles
+        Optimisé pour la performance et la qualité
+        """
         # Nettoyer le cache expiré
         self.db.clear_expired_cache()
         
+        # Collecter les articles par domaine
+        domain_articles = {}
+        
+        # Articles par domaine souhaités
+        articles_per_domain = {
+            'frontend': max(10, max_articles // 3),
+            'backend': max(10, max_articles // 3),
+            'ai': max(10, max_articles // 3),
+            'general': max(5, max_articles // 6)
+        }
+        
+        # Scraper chaque domaine
+        for domain, count in articles_per_domain.items():
+            logger.info(f"Scraping {domain} domain (target: {count} articles)...")
+            domain_articles[domain] = self._scrape_domain(domain, count, use_cache)
+        
+        # Combiner tous les articles
         all_articles = []
-        sources_to_scrape = []
+        for articles in domain_articles.values():
+            all_articles.extend(articles)
         
+        # Trier par score global et limiter
+        all_articles.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+        
+        # Préparer pour le générateur
+        final_articles = self._prepare_for_generator(all_articles[:max_articles])
+        
+        return final_articles
+    
+    def scrape_domain_sources(self, domain: str, max_articles: int = 50, use_cache: bool = True) -> List[Dict]:
+        """Scrape spécifiquement un domaine"""
+        if domain not in self.sources:
+            logger.error(f"Domain {domain} not supported")
+            return []
+        
+        articles = self._scrape_domain(domain, max_articles, use_cache)
+        return self._prepare_for_generator(articles)
+    
+    def _scrape_domain(self, domain: str, max_articles: int, use_cache: bool) -> List[Dict]:
+        """Scrape interne pour un domaine"""
+        # Vérifier le cache
         if use_cache:
-            # Récupérer tous les articles en cache
-            cached_articles = self.db.get_cached_articles()
-            logger.info(f"Found {len(cached_articles)} cached articles")
-            all_articles.extend(cached_articles)
+            source_names = [s['name'] for s in self.sources.get(domain, [])]
+            cached_articles = self.db.get_cached_articles(source_names=source_names)
             
-            # Identifier les sources qui ont des articles en cache
-            cached_sources = set(article['source'] for article in cached_articles)
+            # Filtrer les articles récents
+            fresh_cached = [a for a in cached_articles 
+                          if (datetime.now() - a['published']).days < 3]
             
-            # Déterminer quelles sources doivent être scrapées
-            for source in self.sources:
-                if source['name'] not in cached_sources:
-                    sources_to_scrape.append(source)
-        else:
-            sources_to_scrape = self.sources
+            if len(fresh_cached) >= max_articles:
+                logger.info(f"Using {len(fresh_cached)} cached articles for {domain}")
+                return self._process_and_score(fresh_cached, domain)[:max_articles]
         
-        logger.info(f"Will scrape {len(sources_to_scrape)} sources (out of {len(self.sources)} total)")
+        # Scraper les sources
+        all_articles = []
+        sources = self.sources.get(domain, [])
         
-        # Scraper les sources nécessaires
-        new_articles = []
-        for source in sources_to_scrape:
-            try:
-                if source['type'] == 'rss':
-                    articles = self._scrape_rss(source)
-                else:
-                    articles = self._scrape_web(source)
-                    
-                # Filtrer par pertinence technologique
-                relevant_articles = self._filter_tech_articles(articles)
-                new_articles.extend(relevant_articles)
-                all_articles.extend(relevant_articles)
-                logger.info(f"Scraped {len(relevant_articles)} tech articles from {source['name']}")
-                time.sleep(1)
-                
-            except Exception as e:
-                logger.error(f"Error scraping {source['name']}: {e}")
+        # Limiter le nombre de sources pour la performance
+        sources_to_scrape = sources[:6]
         
-        # Sauvegarder les nouveaux articles dans le cache
-        if new_articles and use_cache:
-            self.db.save_articles_to_cache(new_articles, self.cache_duration_hours)
-            logger.info(f"Saved {len(new_articles)} new articles to cache")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            future_to_source = {
+                executor.submit(self._scrape_source, source): source 
+                for source in sources_to_scrape
+            }
+            
+            for future in as_completed(future_to_source, timeout=20):
+                try:
+                    articles = future.result()
+                    if articles:
+                        all_articles.extend(articles)
+                except Exception as e:
+                    logger.error(f"Error scraping source: {e}")
         
-        # Filtrer par fraîcheur (articles de moins de 3 jours)
-        fresh_articles = self._filter_by_freshness(all_articles, max_days=3)
-        logger.info(f"Kept {len(fresh_articles)} articles after freshness filter (< 3 days)")
+        # Traiter et scorer
+        processed = self._process_and_score(all_articles, domain)
         
-        # Dédupliquer et scorer
-        unique_articles = self._deduplicate_articles(fresh_articles)
-        scored_articles = self._score_tech_articles(unique_articles)
+        # Sauvegarder en cache
+        if use_cache and processed:
+            self.db.save_articles_to_cache(processed[:max_articles], self.cache_duration_hours)
         
-        # Équilibrer les domaines
-        balanced_articles = self._balance_domains(scored_articles, max_articles)
-        
-        return sorted(balanced_articles, key=lambda x: x['relevance_score'], reverse=True)[:max_articles]
+        return processed[:max_articles]
     
-    def _scrape_rss(self, source: Dict) -> List[Dict]:
-        articles = []
-        
-        # Tenter de récupérer le feed avec timeout et retry
-        for attempt in range(self.max_retries + 1):
-            try:
-                # Faire la requête HTTP avec timeout explicite
-                response = requests.get(
-                    source['url'], 
-                    headers=self.headers, 
-                    timeout=self.request_timeout
-                )
-                response.raise_for_status()
-                
-                # Parser le contenu RSS
-                feed = feedparser.parse(response.content)
-                
-                # Vérifier si le feed est valide
-                if hasattr(feed, 'entries') and feed.entries:
-                    break
-                else:
-                    logger.warning(f"Empty or invalid RSS feed for {source['name']}")
-                    if attempt < self.max_retries:
-                        time.sleep(2 ** attempt)  # Backoff exponentiel
-                        continue
-                    else:
-                        return []
-                        
-            except requests.exceptions.Timeout:
-                logger.warning(f"Timeout fetching RSS feed for {source['name']} (attempt {attempt + 1})")
-                if attempt < self.max_retries:
-                    time.sleep(2 ** attempt)  # Backoff exponentiel
-                    continue
-                else:
-                    logger.error(f"Max retries exceeded for {source['name']} due to timeout")
-                    return []
-                    
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Request error for {source['name']}: {e} (attempt {attempt + 1})")
-                if attempt < self.max_retries:
-                    time.sleep(2 ** attempt)  # Backoff exponentiel
-                    continue
-                else:
-                    logger.error(f"Max retries exceeded for {source['name']}: {e}")
-                    return []
-                    
-            except Exception as e:
-                logger.error(f"Unexpected error fetching RSS feed for {source['name']}: {e}")
+    def _scrape_source(self, source: Dict) -> List[Dict]:
+        """Scrape une source RSS"""
+        try:
+            response = requests.get(
+                source['url'], 
+                headers=self.headers, 
+                timeout=self.request_timeout
+            )
+            response.raise_for_status()
+            
+            feed = feedparser.parse(response.content)
+            if not hasattr(feed, 'entries') or not feed.entries:
                 return []
-        
-        # Parser les articles
-        for entry in feed.entries[:12]:  # Limiter par source
-            try:
-                article = {
-                    'title': entry.title,
-                    'url': entry.link,
-                    'source': source['name'],
-                    'category': source['category'],
-                    'reliability': source['reliability'],
-                    'domains': source['domains'],
-                    'published': self._parse_date(entry.get('published', '')),
-                    'summary': self._clean_html_summary(entry.get('summary', '')),
-                    'scraped_at': datetime.now()
-                }
-                articles.append(article)
-            except Exception as e:
-                logger.debug(f"Error parsing RSS entry from {source['name']}: {e}")
-                
-        return articles
-    
-    def _scrape_web(self, source: Dict) -> List[Dict]:
-        articles = []
-        
-        # Tenter de récupérer la page avec timeout et retry
-        for attempt in range(self.max_retries + 1):
-            try:
-                response = requests.get(
-                    source['url'], 
-                    headers=self.headers, 
-                    timeout=self.request_timeout
-                )
-                response.raise_for_status()
-                break
-                
-            except requests.exceptions.Timeout:
-                logger.warning(f"Timeout fetching web page for {source['name']} (attempt {attempt + 1})")
-                if attempt < self.max_retries:
-                    time.sleep(2 ** attempt)
-                    continue
-                else:
-                    logger.error(f"Max retries exceeded for {source['name']} due to timeout")
-                    return []
+            
+            articles = []
+            for entry in feed.entries[:8]:  # Max 8 articles par source
+                try:
+                    article = {
+                        'title': entry.get('title', '').strip(),
+                        'url': entry.get('link', ''),
+                        'source': source['name'],
+                        'source_weight': source['weight'],
+                        'published': self._parse_date(entry.get('published', entry.get('updated', ''))),
+                        'summary': self._clean_text(entry.get('summary', ''))[:600],
+                        'content': '',  # Sera rempli plus tard si nécessaire
+                        'scraped_at': datetime.now(),
+                        'tags': []
+                    }
                     
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Request error for {source['name']}: {e} (attempt {attempt + 1})")
-                if attempt < self.max_retries:
-                    time.sleep(2 ** attempt)
-                    continue
-                else:
-                    logger.error(f"Max retries exceeded for {source['name']}: {e}")
-                    return []
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        items = soup.select(source['selector'])[:15]
-        
-        for item in items:
-            try:
-                title_elem = item.select_one(source['title_selector'])
-                if not title_elem:
-                    continue
+                    # Extraire les tags
+                    if hasattr(entry, 'tags'):
+                        article['tags'] = [tag.term for tag in entry.tags if hasattr(tag, 'term')][:5]
                     
-                title = title_elem.get_text(strip=True)
-                url = title_elem.get('href', '')
+                    # Vérifier si l'article a du contenu complet dans le RSS
+                    if hasattr(entry, 'content') and entry.content:
+                        full_content = ' '.join(c.value for c in entry.content if hasattr(c, 'value'))
+                        if full_content:
+                            article['content'] = self._clean_text(full_content)[:2000]
+                    
+                    articles.append(article)
+                    
+                except Exception as e:
+                    logger.debug(f"Error parsing entry: {e}")
+            
+            return articles
+            
+        except Exception as e:
+            logger.error(f"Error scraping {source['name']}: {e}")
+            return []
+    
+    def _process_and_score(self, articles: List[Dict], domain: str) -> List[Dict]:
+        """Traite et score les articles"""
+        # Dédupliquer
+        unique_articles = self._deduplicate(articles)
+        
+        # Scorer
+        keywords = self.domain_keywords.get(domain, [])
+        for article in unique_articles:
+            score = 0
+            
+            # Score de source
+            score += article.get('source_weight', 5) * 3
+            
+            # Score de fraîcheur
+            age_hours = (datetime.now() - article['published']).total_seconds() / 3600
+            if age_hours < 12:
+                score += 30
+            elif age_hours < 24:
+                score += 25
+            elif age_hours < 48:
+                score += 20
+            elif age_hours < 72:
+                score += 15
+            else:
+                score += 5
+            
+            # Score de pertinence
+            text = (article['title'] + ' ' + article.get('summary', '')).lower()
+            keyword_matches = sum(1 for kw in keywords if kw in text)
+            score += min(keyword_matches * 8, 40)  # Cap à 40
+            
+            # Bonus pour patterns
+            title_lower = article['title'].lower()
+            if any(p in title_lower for p in ['tutorial', 'guide', 'how to', 'introduction']):
+                score += 15
+            if any(p in title_lower for p in ['releases', 'announces', 'launches', 'new']):
+                score += 12
+            if any(p in title_lower for p in ['tips', 'tricks', 'best practices']):
+                score += 10
+            
+            # Malus pour titres trop courts
+            if len(article['title']) < 20:
+                score -= 10
+            
+            article['relevance_score'] = score
+            article['domain'] = domain
+        
+        # Trier par score
+        unique_articles.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        # Enrichir les top articles
+        self._enrich_top_articles(unique_articles[:10])
+        
+        return unique_articles
+    
+    def _enrich_top_articles(self, articles: List[Dict]):
+        """Enrichit les meilleurs articles avec du contenu"""
+        for i, article in enumerate(articles[:5]):  # Seulement les 5 premiers
+            try:
+                if not article.get('content') or len(article['content']) < 500:
+                    # Extraire le contenu si pas déjà fait
+                    content = self._extract_content(article['url'])
+                    if content:
+                        article['content'] = content
+                        article['extraction_quality'] = 'full'
+                    else:
+                        article['content'] = article.get('summary', '')
+                        article['extraction_quality'] = 'summary_only'
+                else:
+                    article['extraction_quality'] = 'rss_content'
                 
-                if not url.startswith('http'):
-                    url = urljoin(source['url'], url)
+                # Détecter les technologies mentionnées
+                full_text = (article['title'] + ' ' + article['content']).lower()
+                found_techs = []
+                for domain_kw in self.domain_keywords.values():
+                    for kw in domain_kw:
+                        if kw in full_text:
+                            found_techs.append(kw)
                 
-                article = {
-                    'title': title,
-                    'url': url,
-                    'source': source['name'],
-                    'category': source['category'],
-                    'reliability': source['reliability'],
-                    'domains': source['domains'],
-                    'published': datetime.now() - timedelta(hours=2),
-                    'summary': '',
-                    'scraped_at': datetime.now()
-                }
-                
-                # Score HackerNews
-                if source['name'] == 'Hacker News' and 'score_selector' in source:
-                    score_elem = item.find_next_sibling()
-                    if score_elem:
-                        score_elem = score_elem.select_one(source['score_selector'])
-                        if score_elem:
-                            score_text = score_elem.get_text()
-                            article['hn_score'] = int(re.findall(r'\d+', score_text)[0])
-                
-                articles.append(article)
+                article['technologies_found'] = list(set(found_techs))[:10]
                 
             except Exception as e:
-                logger.debug(f"Error extracting article: {e}")
-                
-        return articles
+                logger.debug(f"Error enriching article: {e}")
+                article['extraction_quality'] = 'error'
     
-    def _clean_html_summary(self, summary: str) -> str:
-        """Clean HTML from summary text safely"""
-        if not summary:
+    def _extract_content(self, url: str) -> Optional[str]:
+        """Extraction de contenu optimisée"""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=6)
+            response.raise_for_status()
+            
+            # Utiliser readability pour extraction
+            doc = Document(response.content)
+            content = doc.summary()
+            
+            # Nettoyer avec BeautifulSoup
+            soup = BeautifulSoup(content, 'html.parser')
+            
+            # Supprimer les éléments inutiles
+            for tag in soup.find_all(['script', 'style', 'nav', 'aside']):
+                tag.decompose()
+            
+            text = soup.get_text(separator=' ', strip=True)
+            return self._clean_text(text)[:3000]
+            
+        except Exception as e:
+            logger.debug(f"Error extracting from {url}: {e}")
+            return None
+    
+    def _prepare_for_generator(self, articles: List[Dict]) -> List[Dict]:
+        """Prépare les articles pour le générateur"""
+        prepared = []
+        
+        for article in articles:
+            prepared_article = {
+                'id': hashlib.sha256(article['url'].encode()).hexdigest()[:12],
+                'title': article['title'],
+                'url': article['url'],
+                'source': article['source'],
+                'published': article['published'],
+                'relevance_score': article.get('relevance_score', 0),
+                'domain': article.get('domain', 'general'),
+                
+                'content': {
+                    'summary': article.get('summary', ''),
+                    'full_text': article.get('content', ''),
+                    'extraction_quality': article.get('extraction_quality', 'unknown')
+                },
+                
+                'metadata': {
+                    'technologies': article.get('technologies_found', []),
+                    'tags': article.get('tags', []),
+                    'content_type': self._detect_content_type(article['title']),
+                    'freshness': self._calculate_freshness(article['published'])
+                },
+                
+                'scraped_at': article.get('scraped_at', datetime.now())
+            }
+            
+            prepared.append(prepared_article)
+        
+        return prepared
+    
+    def _deduplicate(self, articles: List[Dict]) -> List[Dict]:
+        """Déduplique les articles"""
+        seen = set()
+        unique = []
+        
+        for article in articles:
+            # Créer une clé unique basée sur le titre normalisé
+            title_key = re.sub(r'\W+', '', article['title'].lower())[:60]
+            
+            if title_key not in seen:
+                seen.add(title_key)
+                unique.append(article)
+        
+        return unique
+    
+    def _clean_text(self, text: str) -> str:
+        """Nettoie le texte"""
+        if not text:
             return ""
         
-        try:
-            # Vérifier si c'est du HTML ou du texte brut
-            if '<' in summary and '>' in summary:
-                # C'est du HTML, nettoyer avec BeautifulSoup
-                soup = BeautifulSoup(summary, 'html.parser')
-                text = soup.get_text()
-            else:
-                # C'est du texte brut
-                text = summary
-            
-            # Nettoyer et limiter la longueur
-            text = re.sub(r'\s+', ' ', text).strip()
-            return text[:400]
-        except Exception as e:
-            logger.debug(f"Error cleaning summary: {e}")
-            return summary[:400] if summary else ""
+        # Supprimer les caractères de contrôle
+        text = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', text)
+        # Normaliser les espaces
+        text = re.sub(r'\s+', ' ', text)
+        # Supprimer les séparateurs répétitifs
+        text = re.sub(r'[-=_*]{4,}', '', text)
+        
+        return text.strip()
     
     def _parse_date(self, date_str: str) -> datetime:
+        """Parse une date avec fallback"""
         try:
             from dateutil import parser
-            parsed_date = parser.parse(date_str)
-            if parsed_date.tzinfo is not None:
-                parsed_date = parsed_date.replace(tzinfo=None)
-            return parsed_date
+            return parser.parse(date_str).replace(tzinfo=None)
         except:
             return datetime.now()
     
-    def _filter_by_freshness(self, articles: List[Dict], max_days: int = 3) -> List[Dict]:
-        """Filtre les articles par fraîcheur (garde seulement les articles récents)"""
-        fresh_articles = []
-        cutoff_date = datetime.now() - timedelta(days=max_days)
+    def _detect_content_type(self, title: str) -> str:
+        """Détecte le type de contenu"""
+        title_lower = title.lower()
         
-        for article in articles:
-            published_date = article.get('published', datetime.now())
-            
-            # S'assurer que la date est un objet datetime
-            if isinstance(published_date, str):
-                published_date = self._parse_date(published_date)
-            
-            # Garder seulement les articles récents
-            if published_date >= cutoff_date:
-                fresh_articles.append(article)
-            else:
-                logger.debug(f"Filtered out old article: {article['title'][:50]}... (published: {published_date})")
+        patterns = {
+            'tutorial': ['tutorial', 'guide', 'how to', 'getting started'],
+            'news': ['releases', 'announces', 'launches', 'introduces', 'ships'],
+            'comparison': ['vs', 'versus', 'comparison', 'comparing'],
+            'tips': ['tips', 'tricks', 'best practices', 'mistakes'],
+            'deep_dive': ['deep dive', 'under the hood', 'internals', 'explained']
+        }
         
-        return fresh_articles
+        for content_type, keywords in patterns.items():
+            if any(kw in title_lower for kw in keywords):
+                return content_type
+        
+        return 'article'
     
-    def _filter_tech_articles(self, articles: List[Dict]) -> List[Dict]:
-        """Filtre les articles pertinents pour le développement complet"""
-        tech_articles = []
+    def _calculate_freshness(self, published: datetime) -> str:
+        """Calcule la fraîcheur"""
+        if not isinstance(published, datetime):
+            return 'unknown'
         
-        for article in articles:
-            text_content = (article['title'] + ' ' + article.get('summary', '')).lower()
-            
-            # Vérifier pertinence par domaine
-            relevant_domains = []
-            for domain, keywords in self.tech_keywords.items():
-                for keyword_list in keywords.values():
-                    if any(keyword in text_content for keyword in keyword_list):
-                        relevant_domains.append(domain)
-                        break
-            
-            # Garder si pertinent pour au moins un domaine ou source spécialisée
-            if relevant_domains or any(domain in article['domains'] for domain in ['frontend', 'backend', 'ai']):
-                article['relevant_domains'] = list(set(relevant_domains))
-                tech_articles.append(article)
-                
-        return tech_articles
+        age = datetime.now() - published
+        hours = age.total_seconds() / 3600
+        
+        if hours < 6:
+            return 'hot'
+        elif hours < 24:
+            return 'fresh'
+        elif hours < 48:
+            return 'recent'
+        elif hours < 72:
+            return 'relevant'
+        else:
+            return 'older'
     
-    def _deduplicate_articles(self, articles: List[Dict]) -> List[Dict]:
-        """Déduplication intelligente basée sur le contenu et la similarité"""
-        unique_articles = []
-        seen_signatures = set()
-        
-        for article in articles:
-            # Normalisation avancée du titre
-            title = article['title'].lower()
-            
-            # Supprimer les mots vides et normaliser
-            stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'how', 'why', 'what', 'when', 'where'}
-            title_words = re.findall(r'\b\w+\b', title)
-            significant_words = [w for w in title_words if w not in stop_words and len(w) > 2]
-            
-            # Créer une signature basée sur les mots significatifs
-            if len(significant_words) >= 3:
-                # Utiliser les 3-4 mots les plus significatifs
-                signature = ' '.join(sorted(significant_words[:4]))
-            else:
-                # Fallback sur titre normalisé complet
-                signature = re.sub(r'[^\w\s]', '', title)
-            
-            # Vérifier la similarité avec les articles déjà sélectionnés
-            is_duplicate = False
-            for seen_sig in seen_signatures:
-                # Calculer la similarité
-                common_words = set(signature.split()) & set(seen_sig.split())
-                if len(common_words) >= min(3, len(signature.split()) * 0.7):
-                    is_duplicate = True
-                    break
-            
-            if not is_duplicate:
-                seen_signatures.add(signature)
-                unique_articles.append(article)
-            else:
-                logger.debug(f"Duplicate detected: {article['title'][:50]}...")
-                
-        return unique_articles
-    
-    def _score_tech_articles(self, articles: List[Dict]) -> List[Dict]:
-        """Score optimisé pour la qualité et pertinence du contenu"""
-        for article in articles:
-            score = 0
-            
-            # Score de base par fiabilité (augmenté pour privilégier les sources fiables)
-            reliability = article['reliability']
-            score += reliability * 8  # Augmenté de 6 à 8
-            
-            # Score par fraîcheur (courbe optimisée)
-            published_date = article.get('published', datetime.now())
-            if isinstance(published_date, str):
-                published_date = self._parse_date(published_date)
-            age_hours = (datetime.now() - published_date).total_seconds() / 3600
-            if age_hours < 3:  # Super récent (moins de 3h)
-                score += 50
-            elif age_hours < 12:  # Très récent (moins de 12h)
-                score += 40
-            elif age_hours < 24:  # Récent (moins de 24h)
-                score += 30
-            elif age_hours < 48:  # Assez récent (moins de 2 jours)
-                score += 20
-            elif age_hours < 72:  # Limite (moins de 3 jours)
-                score += 10
-            else:
-                score += 0
-            
-            # Score par domaines techniques (amélioré)
-            text_content = (article['title'] + ' ' + article.get('summary', '')).lower()
-            domain_matches = 0
-            
-            for domain, keywords in self.tech_keywords.items():
-                domain_score = 0
-                
-                # Score pondéré par importance des mots-clés
-                for keyword in keywords['high']:
-                    if keyword in text_content:
-                        domain_score += 20  # Augmenté de 15 à 20
-                        domain_matches += 1
-                        
-                for keyword in keywords['medium']:
-                    if keyword in text_content:
-                        domain_score += 12  # Augmenté de 10 à 12
-                        domain_matches += 1
-                        
-                for keyword in keywords['tools']:
-                    if keyword in text_content:
-                        domain_score += 6   # Augmenté de 5 à 6
-                
-                # Limiter le score par domaine mais permettre plus de variation
-                score += min(domain_score, 40)  # Augmenté de 30 à 40
-            
-            # Bonus pour diversité technologique (articles couvrant plusieurs domaines)
-            if domain_matches >= 3:
-                score += 25
-            elif domain_matches >= 2:
-                score += 15
-            
-            # Bonus pour sources premium (élargi)
-            premium_sources = [
-                'OpenAI Blog', 'Google AI Blog', 'React Blog', 'Node.js Blog', 'Go Dev Blog', 'Rust Blog',
-                'Hugging Face Blog', 'DeepMind Blog', 'Meta AI Blog', 'MIT CSAIL News', 'Stanford AI Lab',
-                'MIT Technology Review', 'IEEE Spectrum', 'Spring Blog', 'Django News'
-            ]
-            if article['source'] in premium_sources:
-                score += 30  # Augmenté de 25 à 30
-            
-            # Bonus pour sources académiques/recherche
-            academic_sources = ['MIT CSAIL News', 'Stanford AI Lab', 'Papers With Code', 'MIT Technology Review', 'IEEE Spectrum']
-            if article['source'] in academic_sources:
-                score += 20
-            
-            # Bonus pour articles multi-domaines
-            relevant_domains = article.get('relevant_domains', [])
-            if len(relevant_domains) > 1:
-                score += 15  # Augmenté de 10 à 15
-            
-            # Bonus HackerNews optimisé
-            if 'hn_score' in article:
-                hn_score = article['hn_score']
-                if hn_score >= 100:
-                    score += 30
-                elif hn_score >= 50:
-                    score += 20
-                elif hn_score >= 20:
-                    score += 10
-                else:
-                    score += 5
-            
-            # Malus pour titres trop courts ou peu informatifs
-            title_length = len(article['title'])
-            if title_length < 20:
-                score -= 10
-            elif title_length > 120:
-                score -= 5
-            
-            # Bonus pour résumé détaillé
-            summary_length = len(article.get('summary', ''))
-            if summary_length > 200:
-                score += 10
-            elif summary_length > 100:
-                score += 5
-            
-            article['relevance_score'] = max(0, score)
-            
-        return articles
-    
-    def _balance_domains(self, articles: List[Dict], max_articles: int) -> List[Dict]:
-        """Équilibrage optimisé pour la qualité par domaine"""
-        articles_by_domain = {'frontend': [], 'backend': [], 'ai': [], 'multi': []}
-        
-        for article in articles:
-            domains = article.get('relevant_domains', [])
-            if len(domains) > 1:
-                articles_by_domain['multi'].append(article)
-            elif 'ai' in domains:
-                articles_by_domain['ai'].append(article)
-            elif 'backend' in domains:
-                articles_by_domain['backend'].append(article)
-            elif 'frontend' in domains:
-                articles_by_domain['frontend'].append(article)
-            else:
-                # Assigner selon la catégorie de la source avec priorité qualité
-                source_category = article.get('category', '')
-                if source_category in ['ai']:
-                    articles_by_domain['ai'].append(article)
-                elif source_category in ['backend']:
-                    articles_by_domain['backend'].append(article)
-                else:
-                    articles_by_domain['frontend'].append(article)
-        
-        # Équilibrage adaptatif basé sur la qualité disponible
-        balanced = []
-        
-        # Trier chaque domaine par score de pertinence
-        for domain in articles_by_domain:
-            articles_by_domain[domain].sort(key=lambda x: x['relevance_score'], reverse=True)
-        
-        # Répartition dynamique selon le contenu disponible
-        domain_counts = {k: len(v) for k, v in articles_by_domain.items()}
-        total_available = sum(domain_counts.values())
-        
-        if total_available == 0:
-            return []
-        
-        # Assurer un minimum de qualité par domaine
-        min_score_threshold = 50  # Score minimum pour être sélectionné
-        
-        # Calculer les quotas adaptatifs
-        base_quota = max_articles // 4  # Base de 25% par domaine principal
-        remaining = max_articles
-        
-        # Priorité aux domaines avec du contenu de qualité
-        for domain in ['ai', 'backend', 'frontend', 'multi']:
-            quality_articles = [a for a in articles_by_domain[domain] if a['relevance_score'] >= min_score_threshold]
-            
-            if domain == 'multi':
-                # Articles multi-domaines : 15% minimum, 25% maximum
-                quota = min(len(quality_articles), max(int(max_articles * 0.15), int(max_articles * 0.25)))
-            else:
-                # Domaines spécialisés : équilibré selon disponibilité
-                available_count = len(quality_articles)
-                if available_count == 0:
-                    quota = 0
-                elif available_count < base_quota:
-                    quota = available_count
-                else:
-                    quota = min(base_quota + 2, available_count)  # +2 pour favoriser la diversité
-            
-            selected = quality_articles[:quota]
-            balanced.extend(selected)
-            remaining -= len(selected)
-        
-        # Compléter avec les meilleurs articles restants si besoin
-        if remaining > 0:
-            all_remaining = []
-            for domain_articles in articles_by_domain.values():
-                for article in domain_articles:
-                    if article not in balanced and article['relevance_score'] >= min_score_threshold:
-                        all_remaining.append(article)
-            
-            all_remaining.sort(key=lambda x: x['relevance_score'], reverse=True)
-            balanced.extend(all_remaining[:remaining])
-        
-        return balanced
-    
+    # Méthodes de compatibilité
     def get_articles_by_domain(self, articles: List[Dict]) -> Dict[str, List[Dict]]:
-        """Organise les articles par domaine technique"""
-        by_domain = {'frontend': [], 'backend': [], 'ai': [], 'multi': []}
+        """Organise les articles par domaine"""
+        by_domain = {'frontend': [], 'backend': [], 'ai': [], 'general': []}
         
         for article in articles:
-            domains = article.get('relevant_domains', [])
-            if len(domains) > 1:
-                by_domain['multi'].append(article)
-            elif 'ai' in domains:
-                by_domain['ai'].append(article)
-            elif 'backend' in domains:
-                by_domain['backend'].append(article)
-            elif 'frontend' in domains:
-                by_domain['frontend'].append(article)
-                
+            domain = article.get('domain', 'general')
+            if domain in by_domain:
+                by_domain[domain].append(article)
+        
         return by_domain
     
     def get_trending_technologies(self, articles: List[Dict]) -> Dict[str, List[str]]:
-        """Technologies tendances par domaine"""
+        """Extrait les technologies tendances"""
         tech_counts = {'frontend': {}, 'backend': {}, 'ai': {}}
         
         for article in articles:
-            text = (article['title'] + ' ' + article.get('summary', '')).lower()
-            
-            for domain, keywords in self.tech_keywords.items():
-                for keyword_list in keywords.values():
-                    for keyword in keyword_list:
-                        if keyword in text:
-                            if keyword not in tech_counts[domain]:
-                                tech_counts[domain][keyword] = 0
-                            tech_counts[domain][keyword] += article.get('relevance_score', 1)
+            domain = article.get('domain', 'general')
+            if domain in tech_counts:
+                for tech in article.get('metadata', {}).get('technologies', []):
+                    if tech not in tech_counts[domain]:
+                        tech_counts[domain][tech] = 0
+                    tech_counts[domain][tech] += 1
         
         # Top 5 par domaine
         trending = {}
         for domain, counts in tech_counts.items():
             sorted_techs = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:5]
             trending[domain] = [tech for tech, _ in sorted_techs]
-            
+        
         return trending
-    
-    def scrape_domain_sources(self, domain: str, max_articles: int = 50, use_cache: bool = True) -> List[Dict]:
-        """Scrape seulement les sources d'un domaine spécifique"""
-        # Nettoyer le cache expiré
-        self.db.clear_expired_cache()
-        
-        domain_articles = []
-        
-        # Mapper les domaines aux catégories de sources
-        domain_categories = {
-            'frontend': ['frontend', 'dev_fr', 'community'],
-            'backend': ['backend', 'dev_fr', 'devops', 'enterprise', 'community'],
-            'ai': ['ai', 'dev_fr', 'community'],
-        }
-        
-        # Filtrer les sources par domaine
-        target_categories = domain_categories.get(domain, [])
-        domain_sources = []
-        domain_source_names = []
-        
-        for source in self.sources:
-            source_category = source.get('category', '')
-            source_domains = source.get('domains', [])
-            
-            # Inclure si la catégorie correspond ou si le domaine est dans les domaines de la source
-            if source_category in target_categories or domain in source_domains:
-                domain_sources.append(source)
-                domain_source_names.append(source['name'])
-        
-        logger.info(f"Domain {domain} has {len(domain_sources)} relevant sources")
-        
-        if use_cache:
-            # Récupérer TOUS les articles en cache pour ce domaine
-            cached_articles = self.db.get_cached_articles(source_names=domain_source_names)
-            logger.info(f"Found {len(cached_articles)} cached articles for domain {domain}")
-            
-            # Filtrer et scorer les articles du cache immédiatement
-            fresh_cached = self._filter_by_freshness(cached_articles, max_days=3)
-            unique_cached = self._deduplicate_articles(fresh_cached)
-            scored_cached = self._score_domain_articles(unique_cached, domain)
-            
-            # Trier et prendre les meilleurs articles du cache
-            sorted_cached = sorted(scored_cached, key=lambda x: x['relevance_score'], reverse=True)
-            
-            logger.info(f"Cache has {len(sorted_cached)} scored articles for domain {domain}")
-            
-            # Si on a déjà assez d'articles de qualité dans le cache, on retourne directement
-            if len(sorted_cached) >= max_articles:
-                logger.info(f"Cache has enough articles ({len(sorted_cached)} >= {max_articles}), skipping scraping")
-                return sorted_cached[:max_articles]
-            
-            # Sinon, on ajoute les articles du cache et on scrape pour compléter
-            domain_articles.extend(cached_articles)
-            
-            # On calcule combien d'articles supplémentaires on a besoin
-            articles_needed = max(10, max_articles - len(sorted_cached))  # Au moins 10 articles frais
-            logger.info(f"Need {articles_needed} more articles, will scrape some sources")
-            
-            # Identifier les sources qui ont le moins d'articles récents en cache
-            source_article_counts = {}
-            for source in domain_sources:
-                source_article_counts[source['name']] = sum(1 for a in cached_articles if a['source'] == source['name'])
-            
-            # Trier les sources par nombre d'articles en cache (moins = priorité)
-            sources_to_scrape = sorted(domain_sources, key=lambda s: source_article_counts.get(s['name'], 0))
-            # Limiter le nombre de sources à scraper
-            sources_to_scrape = sources_to_scrape[:max(3, len(sources_to_scrape) // 4)]  # Max 25% des sources
-        else:
-            sources_to_scrape = domain_sources
-        
-        logger.info(f"Will scrape {len(sources_to_scrape)} sources for domain {domain}")
-        
-        # Scraper uniquement les sources nécessaires
-        new_articles = []
-        for source in sources_to_scrape:
-            try:
-                if source['type'] == 'rss':
-                    articles = self._scrape_rss(source)
-                else:
-                    articles = self._scrape_web(source)
-                    
-                # Filtrer par pertinence technologique
-                relevant_articles = self._filter_tech_articles(articles)
-                new_articles.extend(relevant_articles)
-                domain_articles.extend(relevant_articles)
-                logger.info(f"Scraped {len(relevant_articles)} tech articles from {source['name']}")
-                time.sleep(1)
-                
-            except Exception as e:
-                logger.error(f"Error scraping {source['name']}: {e}")
-        
-        # Sauvegarder les nouveaux articles dans le cache
-        if new_articles and use_cache:
-            self.db.save_articles_to_cache(new_articles, self.cache_duration_hours)
-            logger.info(f"Saved {len(new_articles)} new articles to cache for domain {domain}")
-        
-        # Filtrer par fraîcheur (articles de moins de 3 jours)
-        fresh_articles = self._filter_by_freshness(domain_articles, max_days=3)
-        logger.info(f"Kept {len(fresh_articles)} articles after freshness filter (< 3 days)")
-        
-        # Dédupliquer et scorer spécifiquement pour le domaine
-        unique_articles = self._deduplicate_articles(fresh_articles)
-        scored_articles = self._score_domain_articles(unique_articles, domain)
-        
-        # Trier par score et limiter
-        sorted_articles = sorted(scored_articles, key=lambda x: x['relevance_score'], reverse=True)
-        
-        return sorted_articles[:max_articles]
-    
-    def _score_domain_articles(self, articles: List[Dict], target_domain: str) -> List[Dict]:
-        """Score les articles spécifiquement pour un domaine cible"""
-        keywords = self.tech_keywords.get(target_domain, {})
-        
-        if not keywords:
-            # Fallback au scoring général si le domaine n'est pas reconnu
-            return self._score_tech_articles(articles)
-        
-        for article in articles:
-            score = 0
-            
-            # Score de base selon la fiabilité de la source
-            score += article.get('reliability', 5) * 8
-            
-            # Score de fraîcheur (courbe exponentielle)
-            hours_old = (datetime.now() - article['published']).total_seconds() / 3600
-            if hours_old <= 24:
-                score += 50
-            elif hours_old <= 48:
-                score += 30
-            elif hours_old <= 72:
-                score += 15
-            else:
-                score += 5
-            
-            # Analyse du contenu pour le domaine spécifique
-            text_content = f"{article['title']} {article.get('summary', '')}".lower()
-            
-            domain_score = 0
-            domain_matches = 0
-            
-            # Mots-clés haute priorité pour le domaine cible
-            for keyword in keywords.get('high', []):
-                if keyword in text_content:
-                    domain_score += 30  # Score élevé pour les mots-clés prioritaires
-                    domain_matches += 1
-            
-            # Mots-clés moyenne priorité
-            for keyword in keywords.get('medium', []):
-                if keyword in text_content:
-                    domain_score += 20
-                    domain_matches += 1
-            
-            # Outils et technologies
-            for keyword in keywords.get('tools', []):
-                if keyword in text_content:
-                    domain_score += 15
-                    domain_matches += 1
-            
-            # Bonus supplémentaire si l'article a plusieurs mots-clés du domaine
-            if domain_matches >= 3:
-                domain_score += 40
-            elif domain_matches >= 2:
-                domain_score += 25
-            elif domain_matches >= 1:
-                domain_score += 10
-            
-            # Malus si aucun mot-clé du domaine cible n'est trouvé
-            if domain_matches == 0:
-                domain_score -= 30
-            
-            score += domain_score
-            
-            # Bonus pour sources spécialisées dans le domaine
-            source_domains = article.get('domains', [])
-            if target_domain in source_domains:
-                score += 25
-            
-            # Bonus pour catégorie de source alignée
-            source_category = article.get('category', '')
-            if target_domain == 'frontend' and source_category == 'frontend':
-                score += 20
-            elif target_domain == 'backend' and source_category in ['backend', 'devops', 'enterprise']:
-                score += 20
-            elif target_domain == 'ai' and source_category == 'ai':
-                score += 20
-            
-            # Bonus pour sources premium
-            premium_sources = [
-                'OpenAI Blog', 'Google AI Blog', 'React Blog', 'Node.js Blog', 'Go Dev Blog', 'Rust Blog',
-                'Hugging Face Blog', 'DeepMind Blog', 'Meta AI Blog', 'MIT CSAIL News', 'Stanford AI Lab',
-                'MIT Technology Review', 'IEEE Spectrum', 'Spring Blog', 'Django News', 'CSS-Tricks',
-                'A List Apart', 'Smashing Magazine', 'Vue.js News', 'Angular Blog', 'Web.dev'
-            ]
-            if article['source'] in premium_sources:
-                score += 30
-            
-            # Malus pour titres peu informatifs
-            title_length = len(article['title'])
-            if title_length < 20:
-                score -= 15
-            elif title_length > 120:
-                score -= 5
-            
-            # Bonus pour résumé détaillé
-            summary_length = len(article.get('summary', ''))
-            if summary_length > 200:
-                score += 10
-            elif summary_length > 100:
-                score += 5
-            
-            article['relevance_score'] = max(0, score)
-            article['domain_matches'] = domain_matches
-            
-        return articles
