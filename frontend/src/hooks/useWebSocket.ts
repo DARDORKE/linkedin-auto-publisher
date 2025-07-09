@@ -96,9 +96,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           percentage: 10
         };
       case 'step_completed':
+        const percentage = (data as any).percentage || 50;
+        const step = (data as any).step || 'Traitement';
         return {
-          message: `Étape ${data.step} terminée...`,
-          percentage: 50
+          message: `${step}...`,
+          percentage: percentage
         };
       case 'generation_completed':
         return {

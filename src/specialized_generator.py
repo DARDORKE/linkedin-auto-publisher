@@ -341,15 +341,40 @@ class SpecializedPostGenerator:
         domain_info = self.domains[domain_key]
         
         # Sélection intelligente des articles pour génération optimale
+        self._emit_progress({
+            'type': 'step_completed',
+            'step': 'Sélection des articles',
+            'domain': domain_key,
+            'percentage': 20
+        })
         top_articles = self._select_optimal_articles(articles, max_count=10)
         
         # Analyser le contexte des articles pour un prompt adaptatif
+        self._emit_progress({
+            'type': 'step_completed',
+            'step': 'Analyse du contexte',
+            'domain': domain_key,
+            'percentage': 35
+        })
         article_context = self._analyze_article_context(top_articles, domain_key)
         
         # Créer le prompt optimisé
+        self._emit_progress({
+            'type': 'step_completed',
+            'step': 'Préparation du prompt',
+            'domain': domain_key,
+            'percentage': 45
+        })
         prompt = self._create_optimized_prompt(domain_key, domain_info, top_articles, article_context)
         
         try:
+            # Génération du contenu via IA
+            self._emit_progress({
+                'type': 'step_completed',
+                'step': 'Génération du contenu IA',
+                'domain': domain_key,
+                'percentage': 60
+            })
             response = self.client.models.generate_content(
                 model=self.model_id,
                 contents=prompt
@@ -358,13 +383,31 @@ class SpecializedPostGenerator:
             content = response.text
             
             # Post-traitement pour LinkedIn
+            self._emit_progress({
+                'type': 'step_completed',
+                'step': 'Optimisation LinkedIn',
+                'domain': domain_key,
+                'percentage': 75
+            })
             optimized_content = self._optimize_for_linkedin(content, domain_key)
             
             # Générer hashtags intelligents
+            self._emit_progress({
+                'type': 'step_completed',
+                'step': 'Génération des hashtags',
+                'domain': domain_key,
+                'percentage': 85
+            })
             hashtags_str = self._generate_smart_hashtags(top_articles, domain_key)
             hashtags_list = hashtags_str.split() if hashtags_str else []
             
             # Générer la section sources améliorée
+            self._emit_progress({
+                'type': 'step_completed',
+                'step': 'Finalisation des sources',
+                'domain': domain_key,
+                'percentage': 95
+            })
             sources_section = self._generate_enhanced_sources(domain_key, top_articles)
             
             # Combiner tous les éléments

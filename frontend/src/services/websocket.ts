@@ -24,6 +24,7 @@ export interface GenerationProgressEvent {
   articles_count?: number;
   post_generated?: boolean;
   step?: string;
+  percentage?: number;
   error?: string;
   timestamp: string;
 }
