@@ -5,7 +5,6 @@ from flask_socketio import SocketIO, emit
 from typing import Dict, Any, Optional
 from loguru import logger
 import threading
-import time
 from datetime import datetime
 
 class WebSocketService:
@@ -184,10 +183,6 @@ class WebSocketService:
         
         logger.error(f"Error in session {session_id}: {error_data}")
     
-    def get_active_sessions_count(self) -> int:
-        """Retourne le nombre de sessions actives"""
-        with self.lock:
-            return len(self.active_sessions)
 
 
 # Instance globale du service WebSocket

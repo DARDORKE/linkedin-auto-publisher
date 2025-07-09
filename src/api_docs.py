@@ -7,7 +7,6 @@ from src.fullstack_scraper import FullStackDevScraper
 from src.specialized_generator import SpecializedPostGenerator
 from src.websocket_service import websocket_service, generate_session_id
 from loguru import logger
-import json
 import os
 from datetime import datetime
 
@@ -35,12 +34,10 @@ api = Api(
 posts_ns = Namespace('posts', description='Gestion des posts LinkedIn')
 scrape_ns = Namespace('scrape', description='Scraping d\'articles et génération de contenu')
 domains_ns = Namespace('domains', description='Gestion des domaines technologiques')
-cache_ns = Namespace('cache', description='Système de cache des articles')
 
 api.add_namespace(posts_ns, path='/posts')
 api.add_namespace(scrape_ns, path='/scrape')
 api.add_namespace(domains_ns, path='/')
-api.add_namespace(cache_ns, path='/cache')
 
 # Modèles Swagger
 article_model = api.model('Article', {
@@ -79,12 +76,6 @@ scrape_response_model = api.model('ScrapeResponse', {
     'total_count': fields.Integer(description='Nombre total d\'articles'),
     'domain': fields.String(description='Domaine scrapé'),
     'from_cache': fields.Boolean(description='Données issues du cache')
-})
-
-cache_stats_model = api.model('CacheStats', {
-    'total_articles': fields.Integer(description='Nombre total d\'articles en cache'),
-    'fresh_articles': fields.Integer(description='Articles frais en cache'),
-    'expired_articles': fields.Integer(description='Articles expirés en cache')
 })
 
 # Initialisation
@@ -391,56 +382,6 @@ class Domains(Resource):
         }
         return {'domains': domains}
 
-# Routes Cache
-@cache_ns.route('/stats')
-class CacheStats(Resource):
-    @cache_ns.doc('get_cache_stats')
-    @cache_ns.marshal_with(cache_stats_model)
-    def get(self):
-        """Récupère les statistiques globales du cache"""
-        stats = db.get_cache_stats()
-        return stats
-
-@cache_ns.route('/domains')
-class CacheDomains(Resource):
-    @cache_ns.doc('get_cache_domains')
-    @cache_ns.marshal_with(api.model('CacheDomainStats', {
-        'frontend': fields.Raw(description='Stats cache frontend'),
-        'backend': fields.Raw(description='Stats cache backend'),
-        'ai': fields.Raw(description='Stats cache AI')
-    }))
-    def get(self):
-        """Récupère les statistiques du cache par domaine"""
-        try:
-            scraper = get_scraper()
-            
-            domain_stats = {}
-            for domain in ['frontend', 'backend', 'ai']:
-                domain_sources = []
-                domain_categories = {
-                    'frontend': ['frontend', 'dev_fr', 'community'],
-                    'backend': ['backend', 'dev_fr', 'devops', 'enterprise', 'community'],
-                    'ai': ['ai', 'dev_fr', 'community'],
-                }
-                
-                # Utiliser les sources du nouveau scraper optimisé
-                if domain in scraper.sources:
-                    domain_sources = [source['name'] for source in scraper.sources[domain]]
-                elif domain == 'general':
-                    domain_sources = [source['name'] for source in scraper.sources.get('general', [])]
-                else:
-                    domain_sources = []
-                
-                cached_articles = db.get_cached_articles(source_names=domain_sources)
-                domain_stats[domain] = {
-                    'cached_count': len(cached_articles),
-                    'sources_count': len(domain_sources)
-                }
-            
-            return domain_stats
-        except Exception as e:
-            logger.error(f"Error getting cache stats by domain: {e}")
-            return {}
 
 # Route d'accueil avec info API
 @app.route('/')
@@ -453,8 +394,7 @@ def api_info():
         'endpoints': {
             'posts': '/api/posts/',
             'scraping': '/api/scrape/',
-            'domains': '/api/domains',
-            'cache': '/api/cache/'
+            'domains': '/api/domains'
         }
     }
 

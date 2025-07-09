@@ -1,7 +1,6 @@
 # Web scraping
 beautifulsoup4==4.12.3
 requests==2.31.0
-selenium==4.18.1
 feedparser==6.0.10
 python-dateutil==2.8.2
 readability-lxml==0.8.1
@@ -16,9 +15,6 @@ linkedin-api==2.1.1
 # Scheduling and automation
 schedule==1.2.0
 python-dotenv==1.0.1
-
-# Data handling
-pandas==2.2.0
 
 # Web interface for manual validation
 flask==3.0.0

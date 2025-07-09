@@ -40,17 +40,3 @@ class LinkedInPublisher:
         
         return False
     
-    def validate_post_length(self, content: str) -> bool:
-        max_length = 3000
-        if len(content) > max_length:
-            logger.warning(f"Post exceeds maximum length ({len(content)}/{max_length})")
-            return False
-        return True
-    
-    def format_post(self, content: str) -> str:
-        formatted_content = content.strip()
-        
-        if not formatted_content.endswith(('.', '!', '?', '#')):
-            formatted_content += '.'
-        
-        return formatted_content

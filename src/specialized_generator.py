@@ -1073,23 +1073,4 @@ RÉSUMÉ:"""
         
         return sources_section.strip()
     
-    def get_domain_distribution(self, articles: List[Dict]) -> Dict:
-        """Retourne la distribution des articles par domaine"""
-        by_domain = self._organize_articles_by_domain(articles)
-        
-        distribution = {}
-        total = len(articles)
-        
-        for domain_key, domain_articles in by_domain.items():
-            count = len(domain_articles)
-            percentage = round((count / total) * 100, 1) if total > 0 else 0
-            
-            distribution[domain_key] = {
-                'name': self.domains[domain_key]['name'],
-                'count': count,
-                'percentage': percentage,
-                'can_generate': count >= 3
-            }
-        
-        return distribution
     

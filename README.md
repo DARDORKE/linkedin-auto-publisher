@@ -13,11 +13,10 @@ Une application complète pour générer et publier automatiquement des posts Li
 - **Containerisé**: Docker avec Nginx
 
 ### Backend (Flask + Python)
-- **API**: Flask RESTful
+- **API**: Flask RESTful avec WebSocket
 - **Base de données**: SQLite avec SQLAlchemy
 - **Scraping**: BeautifulSoup + Feedparser
 - **IA**: Google Gemini API
-- **Cache**: Système de cache intelligent (6h)
 - **Containerisé**: Docker
 
 ## Fonctionnalités
@@ -25,7 +24,7 @@ Une application complète pour générer et publier automatiquement des posts Li
 ### 🎯 Tableau de bord
 - Vue d'ensemble des posts et statistiques
 - Graphiques de répartition des posts
-- Monitoring du cache par domaine
+- Suivi en temps réel avec WebSocket
 
 ### 📝 Gestion des posts
 - **Posts en attente**: Validation et approbation
@@ -35,7 +34,7 @@ Une application complète pour générer et publier automatiquement des posts Li
 ### 🔍 Scraping intelligent
 - **3 domaines**: Frontend, Backend, IA
 - **Sources multiples**: 58+ sources RSS fiables
-- **Cache optimisé**: Performance 330x améliorée
+- **Suivi temps réel**: Progress WebSocket
 - **Scoring avancé**: Pertinence par domaine
 
 ### 🤖 Génération automatique
@@ -107,23 +106,21 @@ docker-compose up backend
 │   ├── database.py    # Models SQLAlchemy
 │   ├── fullstack_scraper.py  # Scraping engine
 │   ├── specialized_generator.py  # IA generation
-│   └── web_interface.py  # API endpoints
+│   ├── api_docs.py    # API endpoints avec Swagger
+│   ├── websocket_service.py  # Service WebSocket
+│   └── scheduler.py   # Planificateur de tâches
 ├── docker-compose.yml
 └── requirements.txt
 ```
 
 ## Performance
 
-### Cache intelligent
-- **Avant**: 20-80 secondes par scraping
-- **Après**: 0.06 secondes (cache hit)
-- **Amélioration**: 330x à 1300x plus rapide
-
 ### Optimisations
 - Proxy Nginx pour le frontend
-- Cache Redis-like en SQLite
+- WebSocket pour le temps réel
 - Scraping différentiel par domaine
 - Compression gzip
+- Build Docker optimisé
 
 ## API Endpoints
 
@@ -134,12 +131,11 @@ docker-compose up backend
 - `POST /api/posts/publish/{id}` - Publier un post
 
 ### Scraping
-- `POST /api/scrape/{domain}` - Scraper un domaine
-- `POST /api/generate-from-selection` - Générer depuis sélection
+- `POST /api/scrape/{domain}` - Scraper un domaine avec WebSocket
+- `POST /api/scrape/generate-from-selection` - Générer depuis sélection
 
-### Cache
-- `GET /api/cache/stats` - Statistiques générales
-- `GET /api/cache/domains` - Stats par domaine
+### Domaines
+- `GET /api/domains` - Liste des domaines disponibles
 
 ## Développement
 
@@ -161,10 +157,10 @@ docker-compose up backend
 
 ### Optimisations recommandées
 - Utiliser PostgreSQL au lieu de SQLite
-- Ajouter Redis pour le cache
 - Configurer un reverse proxy (nginx)
 - Activer HTTPS
 - Monitoring avec Prometheus
+- Rate limiting avancé
 
 ### Sécurité
 - Utiliser des secrets Docker
