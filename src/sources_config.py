@@ -7,20 +7,19 @@ SPECIALIZED_SOURCES = {
     'frontend': {
         'react': [
             {'url': 'https://blog.logrocket.com/tag/react/feed/', 'weight': 8, 'type': 'blog', 'focus': 'tutorials'},
-            {'url': 'https://dev.to/feed/tag/react', 'weight': 7, 'type': 'community', 'focus': 'articles'},
+            {'url': 'https://blog.bitsrc.io/feed', 'weight': 8, 'type': 'professional', 'focus': 'components'},
             {'url': 'https://www.joshwcomeau.com/rss.xml', 'weight': 9, 'type': 'deep-dive', 'focus': 'patterns'},
             {'url': 'https://overreacted.io/rss.xml', 'weight': 9, 'type': 'insights', 'focus': 'internals'},
             {'url': 'https://kentcdodds.com/blog/rss.xml', 'weight': 8, 'type': 'best-practices', 'focus': 'patterns'},
         ],
         'vue': [
             {'url': 'https://blog.vuejs.org/feed.rss', 'weight': 10, 'type': 'official', 'focus': 'releases'},
-            {'url': 'https://dev.to/feed/tag/vue', 'weight': 7, 'type': 'community', 'focus': 'articles'},
             {'url': 'https://blog.logrocket.com/tag/vue/feed/', 'weight': 8, 'type': 'blog', 'focus': 'tutorials'},
         ],
         'angular': [
             {'url': 'https://blog.angular.io/feed', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://blog.nrwl.io/feed', 'weight': 9, 'type': 'enterprise', 'focus': 'nx-monorepo'},
-            {'url': 'https://dev.to/feed/tag/angular', 'weight': 7, 'type': 'community', 'focus': 'articles'},
+            {'url': 'https://blog.angular-university.io/rss/', 'weight': 8, 'type': 'education', 'focus': 'courses'},
             {'url': 'https://blog.logrocket.com/tag/angular/feed/', 'weight': 8, 'type': 'blog', 'focus': 'tutorials'},
         ],
         'svelte': [
@@ -33,20 +32,21 @@ SPECIALIZED_SOURCES = {
             {'url': 'https://web.dev/feed.xml', 'weight': 9, 'type': 'official', 'focus': 'standards'},
             {'url': 'https://css-tricks.com/feed/', 'weight': 9, 'type': 'community', 'focus': 'techniques'},
             {'url': 'https://www.smashingmagazine.com/feed/', 'weight': 9, 'type': 'magazine', 'focus': 'design-dev'},
-            {'url': 'https://dev.to/feed/tag/css', 'weight': 7, 'type': 'community', 'focus': 'articles'},
+            {'url': 'https://piccalil.li/feed.xml', 'weight': 9, 'type': 'expert', 'focus': 'modern-css'},
+            {'url': 'https://www.matuzo.at/feed.xml', 'weight': 9, 'type': 'expert', 'focus': 'accessibility'},
+            {'url': 'https://lea.verou.me/feed/', 'weight': 9, 'type': 'expert', 'focus': 'css-specs'},
             {'url': 'https://blog.logrocket.com/tag/css/feed/', 'weight': 8, 'type': 'blog', 'focus': 'tutorials'},
         ],
         'performance': [
-            {'url': 'https://calendar.perfplanet.com/feed/', 'weight': 8, 'type': 'community', 'focus': 'techniques'},
+            {'url': 'https://speedcurve.com/blog/rss/', 'weight': 8, 'type': 'professional', 'focus': 'monitoring'},
             {'url': 'https://web.dev/feed.xml', 'weight': 9, 'type': 'official', 'focus': 'web-vitals'},
         ],
         'build_tools': [
             {'url': 'https://turbo.build/blog/rss.xml', 'weight': 9, 'type': 'official', 'focus': 'monorepo'},
-            {'url': 'https://dev.to/feed/tag/buildtools', 'weight': 7, 'type': 'community', 'focus': 'articles'},
+            {'url': 'https://blog.openreplay.com/rss.xml', 'weight': 8, 'type': 'professional', 'focus': 'debugging'},
         ],
         'testing': [
             {'url': 'https://www.cypress.io/blog/rss.xml', 'weight': 9, 'type': 'official', 'focus': 'e2e-testing'},
-            {'url': 'https://dev.to/feed/tag/testing', 'weight': 7, 'type': 'community', 'focus': 'practices'},
         ],
         'general': [
             {'url': 'https://alistapart.com/main/feed/', 'weight': 9, 'type': 'magazine', 'focus': 'web-standards'},
@@ -57,15 +57,14 @@ SPECIALIZED_SOURCES = {
     'backend': {
         'nodejs': [
             {'url': 'https://nodesource.com/blog/rss', 'weight': 8, 'type': 'enterprise', 'focus': 'production'},
-            {'url': 'https://nodejs.medium.com/feed', 'weight': 7, 'type': 'community', 'focus': 'ecosystem'},
-            {'url': 'https://dev.to/feed/tag/node', 'weight': 7, 'type': 'community', 'focus': 'articles'},
+            {'url': 'https://davidwalsh.name/feed', 'weight': 8, 'type': 'expert', 'focus': 'js-ecosystem'},
+            {'url': 'https://2ality.com/feeds/posts.atom', 'weight': 9, 'type': 'expert', 'focus': 'js-features'},
             {'url': 'https://blog.logrocket.com/tag/node/feed/', 'weight': 8, 'type': 'blog', 'focus': 'tutorials'},
         ],
         'python': [
             {'url': 'https://realpython.com/atom.xml', 'weight': 9, 'type': 'tutorials', 'focus': 'advanced'},
             {'url': 'https://pyfound.blogspot.com/feeds/posts/default', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://planet.python.org/rss20.xml', 'weight': 7, 'type': 'aggregator', 'focus': 'community'},
-            {'url': 'https://dev.to/feed/tag/python', 'weight': 7, 'type': 'community', 'focus': 'articles'},
             {'url': 'https://blog.python.org/feeds/posts/default', 'weight': 10, 'type': 'official', 'focus': 'releases'},
         ],
         'rust': [
@@ -73,40 +72,44 @@ SPECIALIZED_SOURCES = {
             {'url': 'https://this-week-in-rust.org/rss.xml', 'weight': 9, 'type': 'newsletter', 'focus': 'ecosystem'},
             {'url': 'https://without.boats/blog/index.xml', 'weight': 8, 'type': 'core-team', 'focus': 'internals'},
             {'url': 'https://smallcultfollowing.com/babysteps/atom.xml', 'weight': 8, 'type': 'core-team', 'focus': 'design'},
+            {'url': 'https://readrust.net/all/feed.rss', 'weight': 8, 'type': 'aggregator', 'focus': 'curated'},
+            {'url': 'https://fasterthanli.me/index.xml', 'weight': 8, 'type': 'expert', 'focus': 'deep-dive'},
         ],
         'golang': [
             {'url': 'https://go.dev/blog/feed.atom', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://golangweekly.com/rss', 'weight': 8, 'type': 'newsletter', 'focus': 'ecosystem'},
             {'url': 'https://www.ardanlabs.com/blog/index.xml', 'weight': 9, 'type': 'education', 'focus': 'patterns'},
             {'url': 'https://dave.cheney.net/feed', 'weight': 8, 'type': 'expert', 'focus': 'best-practices'},
+            {'url': 'https://blog.gopheracademy.com/index.xml', 'weight': 8, 'type': 'community', 'focus': 'education'},
         ],
         'java': [
             {'url': 'https://inside.java/feed.xml', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://spring.io/blog.atom', 'weight': 9, 'type': 'framework', 'focus': 'spring'},
             {'url': 'https://foojay.io/feed/', 'weight': 8, 'type': 'community', 'focus': 'ecosystem'},
-            {'url': 'https://dev.to/feed/tag/java', 'weight': 7, 'type': 'community', 'focus': 'articles'},
             {'url': 'https://blog.logrocket.com/tag/java/feed/', 'weight': 8, 'type': 'blog', 'focus': 'tutorials'},
         ],
         'dotnet': [
             {'url': 'https://devblogs.microsoft.com/dotnet/feed/', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://andrewlock.net/rss/', 'weight': 9, 'type': 'mvp', 'focus': 'asp-net'},
             {'url': 'https://www.stevejgordon.co.uk/feed', 'weight': 8, 'type': 'expert', 'focus': 'performance'},
+            {'url': 'https://ardalis.com/rss.xml', 'weight': 8, 'type': 'expert', 'focus': 'architecture'},
         ],
         'php': [
             {'url': 'https://www.php.net/feed.atom', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://blog.laravel.com/feed', 'weight': 9, 'type': 'official', 'focus': 'laravel'},
-            {'url': 'https://dev.to/feed/tag/php', 'weight': 7, 'type': 'community', 'focus': 'articles'},
         ],
         'cloud_native': [
             {'url': 'https://kubernetes.io/feed.xml', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://www.cncf.io/feed/', 'weight': 9, 'type': 'foundation', 'focus': 'ecosystem'},
             {'url': 'https://blog.container-solutions.com/rss.xml', 'weight': 8, 'type': 'consultancy', 'focus': 'practices'},
             {'url': 'https://www.docker.com/blog/feed/', 'weight': 9, 'type': 'official', 'focus': 'docker'},
+            {'url': 'https://thenewstack.io/category/cloud-native/feed/', 'weight': 8, 'type': 'magazine', 'focus': 'trends'},
         ],
         'databases': [
             {'url': 'https://www.postgresql.org/news.rss', 'weight': 10, 'type': 'official', 'focus': 'releases'},
             {'url': 'https://www.mongodb.com/blog/rss', 'weight': 9, 'type': 'official', 'focus': 'features'},
-            {'url': 'https://dev.to/feed/tag/database', 'weight': 7, 'type': 'community', 'focus': 'articles'},
+            {'url': 'https://blog.yugabyte.com/rss/', 'weight': 8, 'type': 'vendor', 'focus': 'distributed-sql'},
+            {'url': 'https://www.percona.com/blog/feed/', 'weight': 8, 'type': 'professional', 'focus': 'performance'},
         ],
         'devops': [
             {'url': 'https://www.hashicorp.com/blog/feed.xml', 'weight': 9, 'type': 'tools', 'focus': 'infrastructure'},
@@ -116,8 +119,8 @@ SPECIALIZED_SOURCES = {
         'cloud': [
             {'url': 'https://aws.amazon.com/blogs/aws/feed/', 'weight': 9, 'type': 'official', 'focus': 'aws'},
             {'url': 'https://cloudplatform.googleblog.com/feeds/posts/default', 'weight': 9, 'type': 'official', 'focus': 'gcp'},
-            {'url': 'https://dev.to/feed/tag/azure', 'weight': 7, 'type': 'community', 'focus': 'azure'},
-            {'url': 'https://dev.to/feed/tag/aws', 'weight': 7, 'type': 'community', 'focus': 'aws'},
+            {'url': 'https://azure.microsoft.com/en-us/blog/feed/', 'weight': 9, 'type': 'official', 'focus': 'azure'},
+            {'url': 'https://cloudblog.withgoogle.com/rss/', 'weight': 9, 'type': 'official', 'focus': 'gcp'},
         ]
     },
     'ai': {
@@ -126,29 +129,26 @@ SPECIALIZED_SOURCES = {
             {'url': 'https://distill.pub/rss.xml', 'weight': 10, 'type': 'visualization', 'focus': 'explained'},
             {'url': 'https://blog.research.google/feeds/posts/default', 'weight': 10, 'type': 'research', 'focus': 'google-ai'},
             {'url': 'https://deepmind.com/blog/feed/basic/', 'weight': 10, 'type': 'research', 'focus': 'deepmind'},
-            {'url': 'https://dev.to/feed/tag/ai', 'weight': 7, 'type': 'community', 'focus': 'articles'},
+            {'url': 'https://blogs.microsoft.com/ai/feed/', 'weight': 9, 'type': 'official', 'focus': 'microsoft-ai'},
+            {'url': 'https://lilianweng.github.io/index.xml', 'weight': 9, 'type': 'expert', 'focus': 'ml-theory'},
         ],
         'llms': [
             {'url': 'https://huggingface.co/blog/feed.xml', 'weight': 9, 'type': 'community', 'focus': 'open-source'},
             {'url': 'https://www.together.ai/blog/rss.xml', 'weight': 8, 'type': 'platform', 'focus': 'deployment'},
-            {'url': 'https://dev.to/feed/tag/llm', 'weight': 7, 'type': 'community', 'focus': 'articles'},
         ],
         'mlops': [
             {'url': 'https://neptune.ai/blog/rss', 'weight': 8, 'type': 'tools', 'focus': 'practices'},
             {'url': 'https://mlflow.org/blog/atom.xml', 'weight': 9, 'type': 'official', 'focus': 'lifecycle'},
             {'url': 'https://blog.kubeflow.org/feed.xml', 'weight': 8, 'type': 'official', 'focus': 'kubernetes-ml'},
-            {'url': 'https://dev.to/feed/tag/mlops', 'weight': 7, 'type': 'community', 'focus': 'practices'},
         ],
         'computer_vision': [
             {'url': 'https://www.pyimagesearch.com/feed/', 'weight': 8, 'type': 'tutorials', 'focus': 'practical'},
             {'url': 'https://learnopencv.com/feed/', 'weight': 8, 'type': 'tutorials', 'focus': 'opencv'},
         ],
         'nlp': [
-            {'url': 'https://dev.to/feed/tag/nlp', 'weight': 7, 'type': 'community', 'focus': 'articles'},
         ],
         'applied_ai': [
             {'url': 'https://gradientflow.com/feed/', 'weight': 8, 'type': 'analysis', 'focus': 'trends'},
-            {'url': 'https://dev.to/feed/tag/ai', 'weight': 7, 'type': 'community', 'focus': 'articles'},
         ],
         'data_science': [
             {'url': 'https://towardsdatascience.com/feed', 'weight': 8, 'type': 'community', 'focus': 'articles'},
@@ -160,8 +160,8 @@ SPECIALIZED_SOURCES = {
         {'url': 'https://stackoverflow.blog/feed/', 'weight': 9, 'type': 'community', 'focus': 'insights'},
         {'url': 'https://www.infoq.com/feed', 'weight': 9, 'type': 'magazine', 'focus': 'enterprise'},
         {'url': 'https://thenewstack.io/feed/', 'weight': 8, 'type': 'magazine', 'focus': 'cloud-native'},
-        {'url': 'https://dev.to/feed', 'weight': 7, 'type': 'community', 'focus': 'general'},
-        {'url': 'https://hackernoon.com/feed', 'weight': 7, 'type': 'community', 'focus': 'tech-stories'},
+        {'url': 'https://krebsonsecurity.com/feed/', 'weight': 8, 'type': 'expert', 'focus': 'security'},
+        {'url': 'https://research.checkpoint.com/feed/', 'weight': 8, 'type': 'research', 'focus': 'security'},
     ]
 }
 
@@ -195,11 +195,11 @@ NOVELTY_KEYWORDS = {
 
 # Configuration de qualité
 QUALITY_CONFIG = {
-    'min_word_count': 50,     # Réduit pour être moins strict
+    'min_word_count': 30,     # Encore plus réduit pour être moins strict
     'max_word_count': 15000,  # Augmenté pour permettre plus de contenu
-    'min_quality_score': 20,  # Seuil plus bas pour permettre plus de diversité
-    'min_novelty_score': 0.1, # Réduit pour être moins strict
-    'max_age_days': 7,        # Maximum 1 semaine pour garantir la fraîcheur
+    'min_quality_score': 15,  # Seuil plus bas pour permettre plus de diversité
+    'min_novelty_score': 0.05, # Réduit pour être moins strict
+    'max_age_days': 14,       # Maximum 2 semaines pour permettre plus d'articles
     'scoring_weights': {
         'source_authority': 0.25,  # +5% sources fiables importantes
         'content_depth': 0.20,     # -5% moins de sur-pondération

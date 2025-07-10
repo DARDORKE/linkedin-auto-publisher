@@ -379,3 +379,15 @@ class DatabaseManager:
             EnrichedContentCache.expires_at < datetime.now()
         ).delete()
         self.session.commit()
+    
+    def close(self):
+        """Ferme la session de base de données"""
+        if self.session:
+            try:
+                self.session.close()
+            except Exception as e:
+                logger.error(f"Error closing database session: {e}")
+    
+    def __del__(self):
+        """Destructeur pour s'assurer que la session est fermée"""
+        self.close()

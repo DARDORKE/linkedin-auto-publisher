@@ -245,7 +245,7 @@ class EnhancedFullstackScraper:
             'sources_count': len(flat_sources)
         })
         
-        with ThreadPoolExecutor(max_workers=30) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_source = {}
             
             for source in flat_sources:
@@ -345,16 +345,43 @@ class EnhancedFullstackScraper:
                                 if hasattr(tag, 'term')
                             ][:5]
                         
-                        # Parser la date de publication
-                        if entry.get('published_parsed'):
-                            try:
-                                article['published'] = datetime(*entry.published_parsed[:6])
-                            except (TypeError, ValueError):
-                                logger.warning(f"Failed to parse published_parsed for {entry.get('title', 'unknown')}: {entry.get('published_parsed')}")
-                                continue  # Skip article if date parsing fails
+                        # Parser la date de publication avec fallback sur différents champs
+                        parsed_date = None
+                        
+                        # Essayer dans l'ordre de préférence : published_parsed, updated_parsed, puis les champs string
+                        date_fields = [
+                            ('published_parsed', 'parsed'),
+                            ('updated_parsed', 'parsed'), 
+                            ('published', 'string'),
+                            ('updated', 'string'),
+                            ('date', 'string')
+                        ]
+                        
+                        for field_name, field_type in date_fields:
+                            if entry.get(field_name):
+                                try:
+                                    if field_type == 'parsed' and entry.get(field_name):
+                                        parsed_date = datetime(*entry[field_name][:6])
+                                        break
+                                    elif field_type == 'string' and entry.get(field_name):
+                                        from dateutil import parser as date_parser
+                                        parsed_date = date_parser.parse(entry[field_name])
+                                        break
+                                except (TypeError, ValueError, Exception) as e:
+                                    logger.debug(f"Failed to parse {field_name} for {entry.get('title', 'unknown')[:30]}: {e}")
+                                    continue
+                        
+                        if parsed_date:
+                            article['published'] = parsed_date
                         else:
-                            logger.warning(f"No published_parsed found for {entry.get('title', 'unknown')}")
-                            continue  # Skip article if no date found
+                            # Tentative d'extraction de date depuis l'URL ou le contenu
+                            extracted_date = self._extract_date_from_url_or_content(entry)
+                            if extracted_date:
+                                article['published'] = extracted_date
+                                logger.debug(f"Extracted date from URL/content for {entry.get('title', 'unknown')[:50]}: {extracted_date}")
+                            else:
+                                logger.warning(f"No valid date found for {entry.get('title', 'unknown')[:50]} - skipping article")
+                                continue  # Ignorer l'article si aucune date valide n'est trouvée
                         
                         articles.append(article)
                         
@@ -373,6 +400,69 @@ class EnhancedFullstackScraper:
                     time.sleep(1)  # Wait before retry
         
         return []
+    
+    def _extract_date_from_url_or_content(self, entry: Dict) -> Optional[datetime]:
+        """Extrait une date à partir de l'URL ou du contenu de l'entrée RSS"""
+        import re
+        from dateutil import parser as date_parser
+        
+        # Patterns de dates couramment trouvés dans les URLs
+        date_patterns = [
+            r'/(\d{4})/(\d{1,2})/(\d{1,2})/',  # /2025/07/10/
+            r'/(\d{4})-(\d{1,2})-(\d{1,2})/',  # /2025-07-10/
+            r'(\d{4})(\d{2})(\d{2})',          # 20250710
+            r'(\d{4})/(\d{1,2})/',             # /2025/07/
+        ]
+        
+        # Chercher dans l'URL
+        url = entry.get('link', '') or entry.get('id', '')
+        if url:
+            for pattern in date_patterns:
+                match = re.search(pattern, url)
+                if match:
+                    try:
+                        if len(match.groups()) == 3:
+                            year, month, day = match.groups()
+                            date = datetime(int(year), int(month), int(day))
+                        elif len(match.groups()) == 2:
+                            year, month = match.groups()
+                            date = datetime(int(year), int(month), 1)  # Premier du mois
+                        else:
+                            continue
+                            
+                        # Vérifier que la date est raisonnable (pas dans le futur, pas trop ancienne)
+                        now = datetime.now()
+                        if date <= now and date >= datetime(2020, 1, 1):
+                            return date
+                    except (ValueError, TypeError):
+                        continue
+        
+        # Chercher dans le titre
+        title = entry.get('title', '')
+        if title:
+            # Pattern pour dates dans le titre
+            title_patterns = [
+                r'(\d{1,2})/(\d{1,2})/(\d{4})',    # 07/10/2025
+                r'(\d{4})-(\d{1,2})-(\d{1,2})',    # 2025-07-10
+                r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})',
+                r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(\d{4})',
+            ]
+            
+            for pattern in title_patterns:
+                match = re.search(pattern, title, re.IGNORECASE)
+                if match:
+                    try:
+                        date_str = match.group(0)
+                        date = date_parser.parse(date_str)
+                        
+                        # Vérifier que la date est raisonnable
+                        now = datetime.now()
+                        if date <= now and date >= datetime(2020, 1, 1):
+                            return date
+                    except (ValueError, TypeError):
+                        continue
+        
+        return None
     
     def _enrich_articles_parallel(self, articles: List[Dict]) -> List[Dict]:
         """Enrichit les articles avec le contenu complet en parallèle"""
@@ -399,47 +489,80 @@ class EnhancedFullstackScraper:
                 # Pas de date, on enrichit par précaution
                 recent_articles.append(article)
         
-        # Séparer les articles à enrichir de ceux déjà traités
-        to_enrich = [a for a in recent_articles if not a.get('skipped_enrichment')]
-        already_processed = [a for a in recent_articles if a.get('skipped_enrichment')]
+        # Pré-charger le cache pour éviter les accès concurrents
+        cache_keys = [article['url'] for article in recent_articles if not article.get('skipped_enrichment')]
+        cached_contents = {}
         
-        logger.info(f"Enriching {len(to_enrich)} recent articles (skipping {len(already_processed)} old articles)")
+        try:
+            # Charger tout le cache en une fois
+            for url in cache_keys:
+                cached = self.db.get_enriched_content_from_cache(url)
+                if cached:
+                    cached_contents[url] = cached
+        except Exception as e:
+            logger.debug(f"Error pre-loading cache: {e}")
+        
+        # Séparer les articles à enrichir de ceux déjà traités
+        to_enrich = []
+        already_processed = []
+        
+        for article in recent_articles:
+            if article.get('skipped_enrichment'):
+                already_processed.append(article)
+            elif article['url'] in cached_contents:
+                # Article déjà en cache
+                cached = cached_contents[article['url']]
+                article['content'] = cached['content']
+                article['extraction_quality'] = cached['extraction_quality']
+                article['from_cache'] = True
+                already_processed.append(article)
+            else:
+                # Article à enrichir
+                to_enrich.append(article)
+        
+        logger.info(f"Enriching {len(to_enrich)} articles (using cache for {len(already_processed) - len([a for a in already_processed if a.get('skipped_enrichment')])}, skipping {len([a for a in already_processed if a.get('skipped_enrichment')])} old articles)")
         
         enriched = already_processed.copy()
         
-        # Traitement en parallèle pour l'extraction de contenu
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_article = {
-                executor.submit(self._enrich_single_article, article): article 
-                for article in to_enrich
-            }
-            
-            for future in as_completed(future_to_article, timeout=180):
-                try:
-                    enriched_article = future.result()
-                    if enriched_article:
-                        enriched.append(enriched_article)
-                except Exception as e:
-                    article = future_to_article[future]
-                    logger.debug(f"Error enriching article {article.get('title', 'Unknown')}: {e}")
-                    # Ajouter l'article sans enrichissement
-                    article['content'] = article.get('summary', '')
-                    article['extraction_quality'] = 'error'
-                    enriched.append(article)
+        # Traitement en parallèle pour l'extraction de contenu (seulement les non-cachés)
+        if to_enrich:
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                future_to_article = {
+                    executor.submit(self._enrich_single_article, article): article 
+                    for article in to_enrich
+                }
+                
+                for future in as_completed(future_to_article, timeout=180):
+                    try:
+                        enriched_article = future.result()
+                        if enriched_article:
+                            enriched.append(enriched_article)
+                    except Exception as e:
+                        article = future_to_article[future]
+                        logger.debug(f"Error enriching article {article.get('title', 'Unknown')}: {e}")
+                        # Ajouter l'article sans enrichissement
+                        article['content'] = article.get('summary', '')
+                        article['extraction_quality'] = 'error'
+                        enriched.append(article)
         
         return enriched
     
     def _enrich_single_article(self, article: Dict) -> Optional[Dict]:
         """Enrichit un article individuel avec cache"""
         try:
+            # Créer une nouvelle session pour chaque thread
+            from src.database import DatabaseManager
+            thread_db = DatabaseManager()
+            
             # Vérifier le cache en premier
-            cached_content = self.db.get_enriched_content_from_cache(article['url'])
+            cached_content = thread_db.get_enriched_content_from_cache(article['url'])
             
             if cached_content:
                 article['content'] = cached_content['content']
                 article['extraction_quality'] = cached_content['extraction_quality']
                 article['from_cache'] = True
                 logger.debug(f"Content retrieved from cache for: {article['title'][:50]}")
+                thread_db.close()
                 return article
             
             # Extraire le contenu complet si pas dans le cache
@@ -448,26 +571,33 @@ class EnhancedFullstackScraper:
             if content and len(content) > 200:
                 article['content'] = content
                 article['extraction_quality'] = 'full'
-                # Sauvegarder dans le cache
-                self.db.save_enriched_content_to_cache(
-                    url=article['url'],
-                    content=content,
-                    extraction_quality='full',
-                    cache_hours=48  # Cache pour 48 heures
-                )
+                # Sauvegarder dans le cache avec une nouvelle session
+                try:
+                    thread_db.save_enriched_content_to_cache(
+                        url=article['url'],
+                        content=content,
+                        extraction_quality='full',
+                        cache_hours=48  # Cache pour 48 heures
+                    )
+                except Exception as cache_error:
+                    logger.debug(f"Cache save error for {article['url']}: {cache_error}")
             else:
                 # Fallback sur le summary
                 article['content'] = article.get('summary', '')
                 article['extraction_quality'] = 'summary_only'
                 # Sauvegarder aussi les échecs pour éviter de réessayer
-                self.db.save_enriched_content_to_cache(
-                    url=article['url'],
-                    content=article['content'],
-                    extraction_quality='summary_only',
-                    cache_hours=24  # Cache plus court pour les échecs
-                )
+                try:
+                    thread_db.save_enriched_content_to_cache(
+                        url=article['url'],
+                        content=article['content'],
+                        extraction_quality='summary_only',
+                        cache_hours=24  # Cache plus court pour les échecs
+                    )
+                except Exception as cache_error:
+                    logger.debug(f"Cache save error for {article['url']}: {cache_error}")
             
             article['from_cache'] = False
+            thread_db.close()
             return article
             
         except Exception as e:
@@ -477,10 +607,33 @@ class EnhancedFullstackScraper:
             article['from_cache'] = False
             return article
     
+    def _get_optimized_headers(self, url: str) -> Dict[str, str]:
+        """Retourne des headers optimisés selon le site"""
+        base_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        }
+        
+        # Headers spécifiques pour certains sites
+        if 'microsoft.com' in url or 'azure.microsoft.com' in url:
+            base_headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            base_headers['Cache-Control'] = 'no-cache'
+        elif 'github.com' in url:
+            base_headers['Accept'] = 'application/vnd.github.v3+json'
+        
+        return base_headers
+    
     def _extract_full_content(self, url: str) -> Optional[str]:
         """Extraction complète du contenu avec readability"""
         try:
-            response = requests.get(url, headers=self.headers, timeout=self.request_timeout)
+            # Augmenter le timeout pour les sites lents comme Azure
+            timeout = 30 if 'azure.microsoft.com' in url or 'microsoft.com' in url else self.request_timeout
+            headers = self._get_optimized_headers(url)
+            response = requests.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             
             # Utiliser readability pour extraction du contenu principal
