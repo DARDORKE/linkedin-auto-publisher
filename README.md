@@ -47,34 +47,48 @@ Une application complète pour générer et publier automatiquement des posts Li
 
 ### Prérequis
 - Docker et Docker Compose
+- Make (optionnel, mais recommandé)
 - Clé API Google Gemini
 
-### Configuration
-1. Cloner le projet
-2. Créer le fichier `.env`:
+### Installation automatique
 ```bash
-GEMINI_API_KEY=your_gemini_api_key
+# Configuration initiale (crée .env, dossiers requis)
+make install
+
+# Éditer le fichier .env avec votre clé API
+nano .env
 ```
 
-### Lancement
+### Déploiement rapide
 ```bash
-# Lancer l'application complète
+# Déploiement complet (build + start)
+make deploy
+
+# Redéploiement (down + build + up)
+make redeploy
+```
+
+### Commandes disponibles
+```bash
+make help          # Afficher toutes les commandes
+make build         # Construire les images Docker
+make up            # Démarrer l'application
+make down          # Arrêter l'application
+make deploy        # Déploiement complet
+make redeploy      # Redéploiement complet
+make status        # Statut des conteneurs
+make check         # Vérifier si les services fonctionnent
+make logs          # Voir les logs en temps réel
+make clean         # Nettoyer conteneurs et volumes
+```
+
+### Méthode manuelle (sans Makefile)
+```bash
+# Configuration
+echo "GEMINI_API_KEY=your_api_key" > .env
+
+# Lancement
 docker-compose up -d
-
-# Accéder à l'application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:5000
-```
-
-### Développement
-```bash
-# Frontend uniquement
-cd frontend
-npm install
-npm run dev
-
-# Backend uniquement
-docker-compose up backend
 ```
 
 ## URLs d'accès
@@ -82,6 +96,31 @@ docker-compose up backend
 - **Application principale**: http://localhost:3000
 - **API Backend**: http://localhost:5000
 - **API Docs**: http://localhost:5000/docs/
+
+## Développement
+
+### Monitoring des services
+```bash
+make status  # Voir l'état des conteneurs
+make logs    # Suivre les logs en temps réel
+make check   # Vérifier que les services répondent
+```
+
+### Développement local frontend
+```bash
+cd frontend
+npm install
+npm run dev  # Frontend sur http://localhost:5173
+```
+
+### Maintenance
+```bash
+# Mise à jour après modifications
+make redeploy
+
+# Nettoyage complet
+make clean
+```
 
 ## Architecture technique
 
