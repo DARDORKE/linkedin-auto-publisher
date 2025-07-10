@@ -345,9 +345,11 @@ class EnhancedFullstackScraper:
                             try:
                                 article['published'] = datetime(*entry.published_parsed[:6])
                             except (TypeError, ValueError):
-                                article['published'] = datetime.now()
+                                logger.warning(f"Failed to parse published_parsed for {entry.get('title', 'unknown')}: {entry.get('published_parsed')}")
+                                continue  # Skip article if date parsing fails
                         else:
-                            article['published'] = datetime.now()
+                            logger.warning(f"No published_parsed found for {entry.get('title', 'unknown')}")
+                            continue  # Skip article if no date found
                         
                         articles.append(article)
                         
