@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from loguru import logger
 import os
-from src.fullstack_scraper import FullStackDevScraper
+from src.enhanced_scraper import EnhancedFullstackScraper
 from src.specialized_generator import SpecializedPostGenerator
 from src.database import DatabaseManager
 from src.api_docs import run_web_interface
@@ -12,7 +12,7 @@ import threading
 class PostScheduler:
     def __init__(self):
         self.db = DatabaseManager()
-        self.scraper = FullStackDevScraper(db_manager=self.db)
+        self.scraper = EnhancedFullstackScraper(db_manager=self.db)
         self.generator = SpecializedPostGenerator()
         self.interval_hours = int(os.getenv('SCRAPING_INTERVAL_HOURS', 6))
         self.max_articles = int(os.getenv('MAX_ARTICLES_PER_SCRAPE', 40))

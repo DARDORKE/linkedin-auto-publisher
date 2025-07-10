@@ -3,7 +3,7 @@ from flask_restx import Api, Resource, fields, Namespace
 from flask_cors import CORS
 from src.database import DatabaseManager
 from src.linkedin_publisher import LinkedInPublisher
-from src.fullstack_scraper import FullStackDevScraper
+from src.enhanced_scraper import EnhancedFullstackScraper
 from src.specialized_generator import SpecializedPostGenerator
 from src.websocket_service import websocket_service, generate_session_id
 from loguru import logger
@@ -86,7 +86,7 @@ generator = None
 def get_scraper():
     global scraper
     if scraper is None:
-        scraper = FullStackDevScraper(db_manager=db)
+        scraper = EnhancedFullstackScraper(db_manager=db)
     return scraper
 
 def get_generator():
