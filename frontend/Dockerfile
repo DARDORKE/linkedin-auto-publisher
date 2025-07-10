@@ -16,6 +16,10 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
+# Set timezone to Paris
+ENV TZ=Europe/Paris
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 

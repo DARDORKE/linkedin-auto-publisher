@@ -81,6 +81,8 @@ import ArticleModal from '../components/ArticleModal';
 import useWebSocket from '../hooks/useWebSocket';
 
 
+const MAX_SELECTED_ARTICLES = 5;
+
 export default function ManualScraping() {
   const queryClient = useQueryClient();
   const [selectedDomain, setSelectedDomain] = useState<string>('');
@@ -171,15 +173,24 @@ export default function ManualScraping() {
 
 
   const handleArticleToggle = (index: number) => {
-    setSelectedArticles(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    );
+    setSelectedArticles(prev => {
+      if (prev.includes(index)) {
+        return prev.filter(i => i !== index);
+      } else if (prev.length >= MAX_SELECTED_ARTICLES) {
+        toast.error(`Vous ne pouvez sélectionner que ${MAX_SELECTED_ARTICLES} articles maximum`);
+        return prev;
+      } else {
+        return [...prev, index];
+      }
+    });
   };
 
   const handleSelectAll = () => {
-    setSelectedArticles(scrapedArticles.map((_, index) => index));
+    const indicesToSelect = scrapedArticles.slice(0, MAX_SELECTED_ARTICLES).map((_, index) => index);
+    setSelectedArticles(indicesToSelect);
+    if (scrapedArticles.length > MAX_SELECTED_ARTICLES) {
+      toast.success(`Seuls les ${MAX_SELECTED_ARTICLES} premiers articles ont été sélectionnés`);
+    }
   };
 
   const handleClearAll = () => {
@@ -252,6 +263,7 @@ export default function ManualScraping() {
               <Checkbox
                 checked={selected}
                 onChange={() => handleArticleToggle(index)}
+                disabled={!selected && selectedArticles.length >= MAX_SELECTED_ARTICLES}
               />
             }
             label=""
@@ -395,11 +407,15 @@ export default function ManualScraping() {
                 Tout désélectionner
               </Button>
               <Chip
-                label={`${selectedArticles.length} article${selectedArticles.length !== 1 ? 's' : ''} sélectionné${selectedArticles.length !== 1 ? 's' : ''}`}
-                color="primary"
+                label={`${selectedArticles.length}/${MAX_SELECTED_ARTICLES} articles sélectionnés`}
+                color={selectedArticles.length >= MAX_SELECTED_ARTICLES ? "warning" : "primary"}
                 size="small"
               />
             </Stack>
+            
+            <Alert severity="info" sx={{ mb: 2, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+              Vous pouvez sélectionner jusqu'à {MAX_SELECTED_ARTICLES} articles maximum pour éviter de surcharger le prompt.
+            </Alert>
 
             <Grid container spacing={{ xs: 2, sm: 2, md: 3 }}>
               {scrapedArticles.map((article, index) => (

@@ -22,6 +22,10 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p logs data
 
+# Set timezone to Paris
+ENV TZ=Europe/Paris
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_PORT=5000

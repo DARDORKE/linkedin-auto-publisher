@@ -116,13 +116,13 @@ class WebSocketService {
       this.callbacks.onDisconnected?.();
     });
 
-    this.socket.on('connect_error', (error) => {
+    this.socket.on('connect_error', (error: any) => {
       console.error('WebSocket connection error:', error);
       this.isConnected = false;
     });
 
     // Événements de session
-    this.socket.on('session_joined', (data) => {
+    this.socket.on('session_joined', (data: any) => {
       console.log('Joined session:', data);
     });
 

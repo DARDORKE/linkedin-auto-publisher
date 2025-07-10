@@ -6,6 +6,8 @@ services:
       - "3000:80"
     depends_on:
       - backend
+    environment:
+      - TZ=Europe/Paris
     networks:
       - linkedin-net
     restart: unless-stopped
@@ -23,6 +25,7 @@ services:
     environment:
       - FLASK_PORT=5000
       - PYTHONUNBUFFERED=1
+      - TZ=Europe/Paris
     restart: unless-stopped
     networks:
       - linkedin-net
