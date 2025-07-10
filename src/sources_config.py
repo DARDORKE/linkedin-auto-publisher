@@ -197,15 +197,24 @@ NOVELTY_KEYWORDS = {
 QUALITY_CONFIG = {
     'min_word_count': 50,     # Réduit pour être moins strict
     'max_word_count': 15000,  # Augmenté pour permettre plus de contenu
-    'min_quality_score': 25,  # Réduit pour être moins strict
+    'min_quality_score': 20,  # Seuil plus bas pour permettre plus de diversité
     'min_novelty_score': 0.1, # Réduit pour être moins strict
     'max_age_days': 14,       # Maximum 2 semaines pour garantir la fraîcheur
     'scoring_weights': {
-        'source_authority': 0.20,
-        'content_depth': 0.25,
-        'novelty_factor': 0.25,
-        'technical_value': 0.15,
-        'freshness': 0.10,
-        'relevance': 0.05
+        'source_authority': 0.25,  # +5% sources fiables importantes
+        'content_depth': 0.20,     # -5% moins de sur-pondération
+        'novelty_factor': 0.20,    # -5% moins de sur-pondération  
+        'technical_value': 0.15,   # =
+        'freshness': 0.15,         # +5% fraîcheur plus importante
+        'relevance': 0.05          # =
+    },
+    # Nouveaux paramètres pour l'équilibrage qualité-diversité
+    'diversity_config': {
+        'min_tech_categories': 3,        # Minimum 3 technologies différentes
+        'max_tech_dominance': 0.5,       # Une technologie ne peut pas dépasser 50%
+        'quality_threshold_guaranteed': 20,  # Score minimum pour garantie diversité
+        'rare_tech_bonus': 1.2,          # Bonus pour technologies rares
+        'underrepresented_bonus': 1.3,   # Bonus pour technologies sous-représentées
+        'overrepresented_penalty': 0.7   # Malus pour technologies sur-représentées
     }
 }

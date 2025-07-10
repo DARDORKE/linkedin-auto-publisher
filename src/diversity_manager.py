@@ -7,13 +7,15 @@ import re
 from collections import defaultdict
 from typing import List, Dict, Set, Tuple
 from loguru import logger
+from .sources_config import QUALITY_CONFIG
 
 class DiversityManager:
     def __init__(self):
         self.tech_patterns = self._build_tech_patterns()
+        self.diversity_config = QUALITY_CONFIG['diversity_config']
         
     def ensure_diversity(self, articles: List[Dict], domain: str, target_count: int = 20) -> List[Dict]:
-        """Garantit la diversité technologique dans la sélection finale"""
+        """Garantit un équilibre optimal entre diversité technologique et qualité du contenu"""
         
         if not articles:
             return []
@@ -23,44 +25,15 @@ class DiversityManager:
         
         logger.info(f"Articles categorized for {domain}: {dict((k, len(v)) for k, v in categorized.items())}")
         
-        # Calculer la distribution idéale
-        distribution = self._calculate_distribution(categorized, target_count)
+        # Calculer le score hybride qualité-diversité pour chaque article
+        self._calculate_hybrid_scores(categorized, domain)
         
-        logger.info(f"Target distribution for {domain}: {distribution}")
+        # Sélection équilibrée avec nouveau algorithme
+        selected = self._balanced_selection(categorized, target_count, domain)
         
-        # Sélectionner les meilleurs articles par catégorie
-        selected = []
-        for tech, article_list in categorized.items():
-            quota = distribution.get(tech, 0)
-            if quota > 0:
-                # Prendre les meilleurs articles de cette catégorie
-                best_articles = sorted(
-                    article_list, 
-                    key=lambda x: x.get('quality_score', 0), 
-                    reverse=True
-                )[:quota]
-                
-                for article in best_articles:
-                    article['selected_for_tech'] = tech
-                
-                selected.extend(best_articles)
+        logger.info(f"Final selection for {domain}: {len(selected)} articles")
         
-        # Si on n'a pas assez d'articles, compléter avec les meilleurs restants
-        if len(selected) < target_count:
-            remaining = [a for a in articles if a not in selected]
-            remaining.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
-            
-            for article in remaining[:target_count - len(selected)]:
-                article['selected_for_tech'] = 'overflow'
-                
-            selected.extend(remaining[:target_count - len(selected)])
-        
-        # Limiter au nombre cible
-        final_selection = selected[:target_count]
-        
-        logger.info(f"Final selection for {domain}: {len(final_selection)} articles")
-        
-        return final_selection
+        return selected
     
     def _categorize_articles(self, articles: List[Dict], domain: str) -> Dict[str, List[Dict]]:
         """Catégorise les articles par technologie"""
@@ -110,6 +83,120 @@ class DiversityManager:
                 article['primary_technology'] = 'general'
                 
         return dict(categorized)
+    
+    def _calculate_hybrid_scores(self, categorized: Dict[str, List[Dict]], domain: str):
+        """Calcule un score hybride combinant qualité et valeur de diversité"""
+        # Calculer les métriques de diversité
+        total_articles = sum(len(articles) for articles in categorized.values())
+        tech_counts = {tech: len(articles) for tech, articles in categorized.items()}
+        
+        # Calculer le bonus/malus de diversité pour chaque technologie
+        diversity_factors = {}
+        for tech, count in tech_counts.items():
+            if tech == 'general':
+                diversity_factors[tech] = 0.8  # Légère pénalité pour articles généraux
+            else:
+                # Bonus pour technologies sous-représentées
+                representation_ratio = count / total_articles
+                if representation_ratio < 0.1:  # Moins de 10% = bonus
+                    diversity_factors[tech] = self.diversity_config['underrepresented_bonus']
+                elif representation_ratio < 0.2:  # 10-20% = léger bonus
+                    diversity_factors[tech] = 1.1
+                elif representation_ratio > 0.4:  # Plus de 40% = malus
+                    diversity_factors[tech] = self.diversity_config['overrepresented_penalty']
+                else:
+                    diversity_factors[tech] = 1.0
+        
+        # Appliquer les scores hybrides
+        for tech, articles in categorized.items():
+            diversity_factor = diversity_factors.get(tech, 1.0)
+            
+            for article in articles:
+                base_quality = article.get('quality_score', 0)
+                
+                # Score hybride = qualité * facteur de diversité
+                hybrid_score = base_quality * diversity_factor
+                
+                # Bonus supplémentaire pour articles rares dans leur catégorie
+                if len(articles) <= 2:  # Technologie très rare
+                    hybrid_score *= self.diversity_config['rare_tech_bonus']
+                elif len(articles) <= 5:  # Technologie rare
+                    hybrid_score *= 1.1
+                
+                article['hybrid_score'] = hybrid_score
+                article['diversity_factor'] = diversity_factor
+    
+    def _balanced_selection(self, categorized: Dict[str, List[Dict]], target_count: int, domain: str) -> List[Dict]:
+        """Sélection équilibrée prioritisant qualité ET diversité"""
+        selected = []
+        
+        # Étape 1: Garantir au moins 1 article par technologie majeure (si qualité suffisante)
+        reserved_slots = 0
+        for tech, articles in categorized.items():
+            if tech != 'general' and articles:
+                # Prendre le meilleur article de chaque techno (si score > seuil)
+                best_article = max(articles, key=lambda x: x.get('hybrid_score', 0))
+                if best_article.get('quality_score', 0) > self.diversity_config['quality_threshold_guaranteed']:  # Seuil minimum de qualité
+                    selected.append(best_article)
+                    best_article['selected_for_tech'] = tech
+                    best_article['selection_reason'] = 'diversity_guarantee'
+                    reserved_slots += 1
+        
+        # Étape 2: Remplir les slots restants avec les meilleurs scores hybrides
+        remaining_slots = target_count - reserved_slots
+        
+        # Créer une liste de tous les articles restants
+        remaining_articles = []
+        for tech, articles in categorized.items():
+            for article in articles:
+                if article not in selected:
+                    remaining_articles.append(article)
+        
+        # Trier par score hybride décroissant
+        remaining_articles.sort(key=lambda x: x.get('hybrid_score', 0), reverse=True)
+        
+        # Ajouter les meilleurs articles restants
+        for article in remaining_articles[:remaining_slots]:
+            article['selected_for_tech'] = article.get('primary_technology', 'general')
+            article['selection_reason'] = 'hybrid_score'
+            selected.append(article)
+        
+        # Étape 3: Validation finale de l'équilibre
+        final_selection = self._validate_final_balance(selected, target_count)
+        
+        return final_selection
+    
+    def _validate_final_balance(self, selected: List[Dict], target_count: int) -> List[Dict]:
+        """Validation finale pour s'assurer d'un bon équilibre"""
+        if not selected:
+            return selected
+        
+        # Analyser la distribution finale
+        tech_distribution = {}
+        for article in selected:
+            tech = article.get('selected_for_tech', 'general')
+            tech_distribution[tech] = tech_distribution.get(tech, 0) + 1
+        
+        # Vérifier si une technologie domine trop
+        max_tech = max(tech_distribution.values())
+        if max_tech > target_count * self.diversity_config['max_tech_dominance']:
+            # Rééquilibrer en remplaçant les articles de moindre qualité
+            dominant_tech = max(tech_distribution, key=tech_distribution.get)
+            
+            # Identifier les articles les plus faibles de la techno dominante
+            dominant_articles = [a for a in selected if a.get('selected_for_tech') == dominant_tech]
+            dominant_articles.sort(key=lambda x: x.get('quality_score', 0))
+            
+            # Remplacer par des articles d'autres technos si disponibles
+            articles_to_replace = dominant_articles[:max_tech - target_count // 2]
+            
+            logger.info(f"Rééquilibrage détecté: {dominant_tech} domine avec {max_tech} articles")
+            
+            # Retirer les articles à remplacer
+            for article in articles_to_replace:
+                selected.remove(article)
+        
+        return selected[:target_count]
     
     def _calculate_distribution(self, categorized: Dict[str, List[Dict]], target_count: int) -> Dict[str, int]:
         """Calcule la distribution optimale des articles"""
