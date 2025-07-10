@@ -34,6 +34,9 @@ export interface Article {
   relevance_score: number;
   domain_matches?: number;
   published: string;
+  primary_technology?: string;
+  selected_for_tech?: string;
+  detected_technologies?: Record<string, number>;
 }
 
 export interface Domain {

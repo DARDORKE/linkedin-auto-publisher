@@ -1,4 +1,52 @@
 import React, { useState } from 'react';
+
+// Fonction pour obtenir la couleur d'une technologie
+const getTechColor = (tech: string): string => {
+  const techColors: Record<string, string> = {
+    // Frontend
+    'react': '#61DAFB',
+    'vue': '#4FC08D',
+    'angular': '#DD0031',
+    'svelte': '#FF3E00',
+    'css': '#1572B6',
+    'javascript': '#F7DF1E',
+    'typescript': '#3178C6',
+    'tooling': '#FF6B6B',
+    'testing': '#8CC84B',
+    'mobile': '#A663CC',
+    'performance': '#FFA500',
+    
+    // Backend
+    'nodejs': '#339933',
+    'python': '#3776AB',
+    'java': '#ED8B00',
+    'go': '#00ADD8',
+    'rust': '#CE422B',
+    'php': '#777BB4',
+    'ruby': '#CC342D',
+    'dotnet': '#512BD4',
+    'databases': '#336791',
+    'devops': '#2496ED',
+    'cloud': '#FF9900',
+    'api': '#009688',
+    
+    // AI
+    'llms': '#FF6B35',
+    'ml_frameworks': '#FF6F00',
+    'nlp': '#8E24AA',
+    'computer_vision': '#1976D2',
+    'mlops': '#00897B',
+    'data_science': '#FFC107',
+    'ai_tools': '#E91E63',
+    'research': '#9C27B0',
+    'ethics': '#795548',
+    
+    // Default
+    'general': '#6C757D'
+  };
+  
+  return techColors[tech] || '#6C757D';
+};
 import {
   Card,
   CardContent,
@@ -109,6 +157,44 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
               />
             ))}
           </Stack>
+
+          {/* Tags technologiques basés sur les articles sources */}
+          {(() => {
+            const technologies = Array.from(new Set(
+              post.source_articles
+                .map(article => (article as any).primary_technology)
+                .filter(tech => tech && tech !== 'general')
+            ));
+            
+            if (technologies.length > 0) {
+              return (
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                  <Typography variant="caption" sx={{ alignSelf: 'center', fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
+                    Technologies:
+                  </Typography>
+                  {technologies.map((tech, index) => (
+                    <Chip 
+                      key={index}
+                      label={tech} 
+                      size="small" 
+                      sx={{
+                        backgroundColor: getTechColor(tech),
+                        color: 'white',
+                        fontWeight: 'bold',
+                        fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                        height: { xs: '20px', sm: '24px' },
+                        '&:hover': {
+                          backgroundColor: getTechColor(tech),
+                          opacity: 0.8,
+                        }
+                      }}
+                    />
+                  ))}
+                </Stack>
+              );
+            }
+            return null;
+          })()}
 
           <Box>
             <Button
