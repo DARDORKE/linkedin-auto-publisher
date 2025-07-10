@@ -36,9 +36,9 @@ interface Props {
 
 const menuItems = [
   { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard', badge: null },
+  { text: 'Scraping manuel', icon: <SearchIcon />, path: '/scraping', badge: null },
   { text: 'Posts en attente', icon: <PendingIcon />, path: '/posts/pending', badge: 'pending' },
   { text: 'Posts approuvés', icon: <ApprovedIcon />, path: '/posts/approved', badge: 'approved' },
-  { text: 'Scraping manuel', icon: <SearchIcon />, path: '/scraping', badge: null },
 ];
 
 export default function Layout({ children }: Props) {
