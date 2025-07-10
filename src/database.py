@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
 import json
+from loguru import logger
 
 Base = declarative_base()
 
@@ -76,6 +77,21 @@ class CachedArticle(Base):
             'domain_matches': self.domain_matches,
             'scraped_at': self.scraped_at
         }
+
+class EnrichedContentCache(Base):
+    __tablename__ = 'enriched_content_cache'
+    
+    id = Column(Integer, primary_key=True)
+    url = Column(String(500), nullable=False, unique=True)
+    content = Column(Text)  # Full enriched content
+    extraction_quality = Column(String(50))
+    cached_at = Column(DateTime, default=datetime.now)
+    expires_at = Column(DateTime)
+    
+    # Index pour améliorer les performances
+    __table_args__ = (
+        Index('idx_url_expires', 'url', 'expires_at'),
+    )
 
 class DatabaseManager:
     def __init__(self, db_path='data/linkedin_posts.db'):
@@ -312,3 +328,54 @@ class DatabaseManager:
             'fresh_articles': fresh_cached,
             'expired_articles': total_cached - fresh_cached
         }
+    
+    def get_enriched_content_from_cache(self, url: str):
+        """Récupère le contenu enrichi depuis le cache s'il existe et n'est pas expiré"""
+        cached = self.session.query(EnrichedContentCache).filter(
+            EnrichedContentCache.url == url,
+            EnrichedContentCache.expires_at > datetime.now()
+        ).first()
+        
+        if cached:
+            return {
+                'content': cached.content,
+                'extraction_quality': cached.extraction_quality,
+                'from_cache': True
+            }
+        return None
+    
+    def save_enriched_content_to_cache(self, url: str, content: str, extraction_quality: str, cache_hours: int = 24):
+        """Sauvegarde le contenu enrichi dans le cache"""
+        expires_at = datetime.now() + timedelta(hours=cache_hours)
+        
+        # Vérifier si l'entrée existe déjà
+        existing = self.session.query(EnrichedContentCache).filter(
+            EnrichedContentCache.url == url
+        ).first()
+        
+        if existing:
+            existing.content = content
+            existing.extraction_quality = extraction_quality
+            existing.cached_at = datetime.now()
+            existing.expires_at = expires_at
+        else:
+            cached_content = EnrichedContentCache(
+                url=url,
+                content=content,
+                extraction_quality=extraction_quality,
+                expires_at=expires_at
+            )
+            self.session.add(cached_content)
+        
+        try:
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"Error saving enriched content to cache: {e}")
+    
+    def clear_expired_enriched_cache(self):
+        """Nettoie le cache du contenu enrichi expiré"""
+        self.session.query(EnrichedContentCache).filter(
+            EnrichedContentCache.expires_at < datetime.now()
+        ).delete()
+        self.session.commit()

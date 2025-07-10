@@ -69,6 +69,7 @@ class EnhancedFullstackScraper:
         
         # Nettoyer le cache expiré
         self.db.clear_expired_cache()
+        self.db.clear_expired_enriched_cache()
         
         # Collecter les articles par domaine
         domain_results = {}
@@ -244,7 +245,7 @@ class EnhancedFullstackScraper:
             'sources_count': len(flat_sources)
         })
         
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=30) as executor:
             future_to_source = {}
             
             for source in flat_sources:
@@ -313,7 +314,11 @@ class EnhancedFullstackScraper:
                 
                 articles = []
                 # Prendre plus d'articles par source pour avoir plus de choix
-                for entry in feed.entries[:15]:
+                # Ajuster selon le poids de la source (sources prioritaires = plus d'articles)
+                source_weight = source_config.get('weight', 7)
+                max_articles_from_source = 5 if source_weight < 8 else 10 if source_weight < 9 else 15
+                
+                for entry in feed.entries[:max_articles_from_source]:
                     try:
                         # Valider l'entrée
                         if not entry.get('title') or not entry.get('link'):
@@ -374,15 +379,39 @@ class EnhancedFullstackScraper:
         if not articles:
             return []
         
-        logger.info(f"Enriching {len(articles)} articles with full content")
+        # Filtrer les articles trop anciens avant l'enrichissement
+        max_age_days = 30  # Ne pas enrichir les articles de plus de 30 jours
+        cutoff_date = datetime.now() - timedelta(days=max_age_days)
         
-        enriched = []
+        recent_articles = []
+        for article in articles:
+            published_date = article.get('published')
+            if published_date and isinstance(published_date, datetime):
+                if published_date >= cutoff_date:
+                    recent_articles.append(article)
+                else:
+                    # Article trop ancien, on garde juste le summary
+                    article['content'] = article.get('summary', '')
+                    article['extraction_quality'] = 'too_old'
+                    article['skipped_enrichment'] = True
+                    recent_articles.append(article)
+            else:
+                # Pas de date, on enrichit par précaution
+                recent_articles.append(article)
+        
+        # Séparer les articles à enrichir de ceux déjà traités
+        to_enrich = [a for a in recent_articles if not a.get('skipped_enrichment')]
+        already_processed = [a for a in recent_articles if a.get('skipped_enrichment')]
+        
+        logger.info(f"Enriching {len(to_enrich)} recent articles (skipping {len(already_processed)} old articles)")
+        
+        enriched = already_processed.copy()
         
         # Traitement en parallèle pour l'extraction de contenu
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             future_to_article = {
                 executor.submit(self._enrich_single_article, article): article 
-                for article in articles
+                for article in to_enrich
             }
             
             for future in as_completed(future_to_article, timeout=180):
@@ -401,25 +430,51 @@ class EnhancedFullstackScraper:
         return enriched
     
     def _enrich_single_article(self, article: Dict) -> Optional[Dict]:
-        """Enrichit un article individuel"""
+        """Enrichit un article individuel avec cache"""
         try:
-            # Extraire le contenu complet
+            # Vérifier le cache en premier
+            cached_content = self.db.get_enriched_content_from_cache(article['url'])
+            
+            if cached_content:
+                article['content'] = cached_content['content']
+                article['extraction_quality'] = cached_content['extraction_quality']
+                article['from_cache'] = True
+                logger.debug(f"Content retrieved from cache for: {article['title'][:50]}")
+                return article
+            
+            # Extraire le contenu complet si pas dans le cache
             content = self._extract_full_content(article['url'])
             
             if content and len(content) > 200:
                 article['content'] = content
                 article['extraction_quality'] = 'full'
+                # Sauvegarder dans le cache
+                self.db.save_enriched_content_to_cache(
+                    url=article['url'],
+                    content=content,
+                    extraction_quality='full',
+                    cache_hours=48  # Cache pour 48 heures
+                )
             else:
                 # Fallback sur le summary
                 article['content'] = article.get('summary', '')
                 article['extraction_quality'] = 'summary_only'
+                # Sauvegarder aussi les échecs pour éviter de réessayer
+                self.db.save_enriched_content_to_cache(
+                    url=article['url'],
+                    content=article['content'],
+                    extraction_quality='summary_only',
+                    cache_hours=24  # Cache plus court pour les échecs
+                )
             
+            article['from_cache'] = False
             return article
             
         except Exception as e:
             logger.debug(f"Error enriching article {article.get('title', 'Unknown')}: {e}")
             article['content'] = article.get('summary', '')
             article['extraction_quality'] = 'error'
+            article['from_cache'] = False
             return article
     
     def _extract_full_content(self, url: str) -> Optional[str]:
@@ -480,12 +535,30 @@ class EnhancedFullstackScraper:
         for pattern in patterns_to_remove:
             text = re.sub(pattern, '', text, flags=re.IGNORECASE)
         
-        # Normaliser les espaces
+        # Supprimer toutes les URLs
+        # Pattern pour matcher différents types d'URLs
+        url_patterns = [
+            r'https?://[^\s<>"{}|\\^`\[\]]+',  # URLs HTTP/HTTPS
+            r'www\.[^\s<>"{}|\\^`\[\]]+',      # URLs commençant par www.
+            r'[a-zA-Z0-9][a-zA-Z0-9-]*\.(?:com|org|net|edu|gov|mil|int|co|io|dev|app|ai|ml|xyz|tech|info|biz|name|pro|aero|museum|coop|travel|jobs|mobi|cat|tel|asia|post|test|bitnet|csnet|arpa|nato|example|invalid|localhost|localdomain|onion|local|internal|private|corp|home|host|lan|wan|web|root|mail|users|admin|oracle|ibm|apple|sony|nasa|mit|stanford|oxford|cambridge|harvard|yale|princeton|berkeley|ucla|nyu|columbia|cornell|duke|rice|cmu|gatech|purdue|umich|unc|uw|ut|osu|psu|umd|rutgers|indiana|uiuc|wisc|iowa|msu|umn|missouri|arizona|colorado|oregon|washington|nevada|utah|idaho|montana|wyoming|alaska|hawaii|maine|vermont|newhampshire|massachusetts|rhodeisland|connecticut|newyork|newjersey|pennsylvania|delaware|maryland|virginia|westvirginia|northcarolina|southcarolina|georgia|florida|alabama|mississippi|tennessee|kentucky|ohio|michigan|indiana|illinois|wisconsin|minnesota|iowa|missouri|arkansas|louisiana|texas|oklahoma|kansas|nebraska|southdakota|northdakota|colorado|newmexico|arizona|utah|nevada|idaho|montana|wyoming|california|oregon|washington|alaska|hawaii)(?:[/\s,.:;!?)}\]"]|$)',  # Domaines isolés
+            r'(?:ftp|ftps|ssh|telnet|gopher|file|mailto|news|nntp|prospero|aim|webcal|xmpp|tel|sms|bitcoin|geo|magnet|urn|spotify|lastfm|skype|facetime|callto|discord|slack|zoom|teams|meet):[^\s<>"{}|\\^`\[\]]+',  # Autres protocoles
+            r'\[link\]|\[url\]|\[Link\]|\[URL\]|\(link\)|\(url\)',  # Marqueurs de liens
+            r'<a\s+[^>]*>.*?</a>',  # Balises HTML de liens qui pourraient rester
+        ]
+        
+        for pattern in url_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+        
+        # Normaliser les espaces après suppression des URLs
         text = re.sub(r'\s+', ' ', text)
         text = re.sub(r'\n+', '\n', text)
         
         # Supprimer les caractères de contrôle
         text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+        
+        # Nettoyer les espaces multiples qui pourraient rester après suppression d'URLs
+        text = re.sub(r' {2,}', ' ', text)
+        text = re.sub(r'^\s+|\s+$', '', text, flags=re.MULTILINE)
         
         return text.strip()
     
