@@ -52,6 +52,10 @@ Une application complète pour générer et publier automatiquement des posts Li
 
 ### Installation automatique
 ```bash
+# Cloner le projet
+git clone https://github.com/DARDORKE/linkedin-auto-publisher.git
+cd linkedin-auto-publisher
+
 # Configuration initiale (crée .env, dossiers requis)
 make install
 
