@@ -175,7 +175,7 @@ class AdvancedContentFilter:
         if word_count > self.quality_thresholds['max_word_count']:
             return {'passed': False, 'reason': 'too_long'}
         
-        # Vérification de l'âge (max 30 jours)
+        # Vérification de l'âge (max 2 semaines)
         published = article.get('published_parsed')
         if published:
             try:

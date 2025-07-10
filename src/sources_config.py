@@ -199,7 +199,7 @@ QUALITY_CONFIG = {
     'max_word_count': 15000,  # Augmenté pour permettre plus de contenu
     'min_quality_score': 25,  # Réduit pour être moins strict
     'min_novelty_score': 0.1, # Réduit pour être moins strict
-    'max_age_days': 60,       # Augmenté pour permettre plus d'articles
+    'max_age_days': 14,       # Maximum 2 semaines pour garantir la fraîcheur
     'scoring_weights': {
         'source_authority': 0.20,
         'content_depth': 0.25,
