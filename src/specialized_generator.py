@@ -186,8 +186,9 @@ class SpecializedPostGenerator:
         for article in articles:
             content_score = 0
             
-            # Score de base (pertinence technique)
-            content_score += article.get('relevance_score', 0) * 0.6
+            # Score de base - Utiliser le nouveau quality_score si disponible
+            base_score = article.get('quality_score', article.get('relevance_score', 0))
+            content_score += base_score * 0.7  # Poids principal sur la qualité
             
             # Bonus pour diversité des sources
             content_score += self._calculate_source_diversity_bonus(article, articles)
@@ -199,8 +200,16 @@ class SpecializedPostGenerator:
             # Bonus pour résumé informatif
             # Utiliser le contenu complet pour évaluer la qualité
             content = article.get('content', '') or article.get('summary', '')
-            summary_quality = self._evaluate_summary_quality(content)
-            content_score += summary_quality
+            content_quality = self._evaluate_content_quality_enhanced(content, article)
+            content_score += content_quality
+            
+            # Bonus pour nouveauté/fraîcheur
+            novelty_bonus = self._calculate_novelty_bonus(article)
+            content_score += novelty_bonus
+            
+            # Bonus pour métadonnées de qualité (du nouveau système)
+            metadata_bonus = self._calculate_metadata_bonus(article)
+            content_score += metadata_bonus
             
             # Malus pour redondance technologique
             tech_redundancy = self._calculate_tech_redundancy(article, scored_articles)
@@ -214,30 +223,56 @@ class SpecializedPostGenerator:
         # Trier par score de génération
         scored_articles.sort(key=lambda x: x['content_generation_score'], reverse=True)
         
-        # Sélection finale avec diversité
+        # Sélection finale avec diversité technologique améliorée
         selected = []
         used_sources = set()
         covered_technologies = set()
+        selected_domains = set()
         
         for article in scored_articles:
             if len(selected) >= max_count:
                 break
                 
-            source = article['source']
+            source = article.get('source', article.get('source_name', 'Unknown'))
             
             # Éviter trop d'articles de la même source
-            if source in used_sources and len([a for a in selected if a['source'] == source]) >= 2:
+            if source in used_sources and len([a for a in selected if a.get('source', a.get('source_name', '')) == source]) >= 2:
                 continue
             
             # Privilégier la diversité technologique
-            article_techs = self._extract_technologies(article)
-            if not article_techs.issubset(covered_technologies):
+            article_techs = self._extract_technologies_enhanced(article)
+            article_domain = article.get('technology', article.get('domain', 'general'))
+            
+            # Critères de sélection améliorés
+            tech_overlap = len(article_techs & covered_technologies)
+            domain_count = len([a for a in selected if a.get('technology', a.get('domain', 'general')) == article_domain])
+            
+            # Conditions de sélection
+            should_select = False
+            
+            if len(selected) < max_count // 3:
+                # Premiers articles : moins strict
+                should_select = True
+            elif tech_overlap == 0:
+                # Nouvelle technologie : priorité
+                should_select = True
+            elif domain_count < 2:
+                # Diversité des domaines techniques
+                should_select = True
+            elif len(selected) < max_count * 0.8 and tech_overlap <= 1:
+                # Phase intermédiaire : tolérer un peu de redondance
+                should_select = True
+            
+            if should_select:
                 selected.append(article)
                 used_sources.add(source)
                 covered_technologies.update(article_techs)
-            elif len(selected) < max_count // 2:  # Autoriser quelques doublons au début
-                selected.append(article)
-                used_sources.add(source)
+                selected_domains.add(article_domain)
+        
+        # Log de la sélection finale
+        logger.info(f"Selected {len(selected)} articles from {len(scored_articles)} candidates")
+        logger.info(f"Technologies covered: {covered_technologies}")
+        logger.info(f"Domains covered: {selected_domains}")
         
         return selected[:max_count]
     
@@ -335,6 +370,121 @@ class SpecializedPostGenerator:
                 technologies.add(tech.lower())
         
         return technologies
+    
+    def _extract_technologies_enhanced(self, article: Dict) -> set:
+        """Version améliorée de l'extraction de technologies"""
+        # Utiliser les métadonnées si disponibles
+        detected_techs = article.get('metadata', {}).get('technologies', [])
+        if detected_techs:
+            return set(tech.lower() for tech in detected_techs)
+        
+        # Fallback vers l'ancienne méthode
+        return self._extract_technologies(article)
+    
+    def _evaluate_content_quality_enhanced(self, content: str, article: Dict) -> float:
+        """Évaluation améliorée de la qualité du contenu"""
+        if not content:
+            return 0
+        
+        score = 0
+        
+        # Score de base selon la longueur
+        length = len(content)
+        if 500 <= length <= 3000:
+            score += 20  # Longueur optimale
+        elif 200 <= length <= 5000:
+            score += 15
+        elif length < 100:
+            score -= 10
+        
+        # Bonus pour extraction de qualité
+        extraction_quality = article.get('metadata', {}).get('extraction_quality', 'unknown')
+        if extraction_quality == 'full':
+            score += 15
+        elif extraction_quality == 'summary_only':
+            score += 5
+        elif extraction_quality == 'error':
+            score -= 5
+        
+        # Bonus pour présence de code/exemples
+        if any(pattern in content for pattern in ['```', '<code>', 'function ', 'class ', '```']):
+            score += 10
+        
+        # Bonus pour structure (listes, headers)
+        if any(pattern in content for pattern in ['* ', '- ', '1. ', '2. ', '## ', '### ']):
+            score += 8
+        
+        # Bonus pour mots-clés techniques avancés
+        technical_keywords = [
+            'implementation', 'architecture', 'performance', 'optimization',
+            'security', 'scalability', 'algorithm', 'framework', 'api'
+        ]
+        tech_count = sum(1 for keyword in technical_keywords if keyword in content.lower())
+        score += min(tech_count * 2, 10)
+        
+        return score
+    
+    def _calculate_novelty_bonus(self, article: Dict) -> float:
+        """Calcule un bonus basé sur la nouveauté de l'article"""
+        score = 0
+        
+        # Utiliser les métadonnées de fraîcheur si disponibles
+        freshness = article.get('metadata', {}).get('freshness', 'unknown')
+        freshness_scores = {
+            'hot': 15,      # < 6h
+            'fresh': 12,    # < 24h
+            'recent': 8,    # < 48h
+            'relevant': 5,  # < 72h
+            'older': 2,     # > 72h
+            'unknown': 0
+        }
+        score += freshness_scores.get(freshness, 0)
+        
+        # Bonus pour score de nouveauté du nouveau système
+        score_breakdown = article.get('score_breakdown', {})
+        novelty_factor = score_breakdown.get('novelty_factor', 0)
+        score += novelty_factor * 20  # Convertir en bonus
+        
+        # Patterns de nouveauté dans le titre
+        title = article.get('title', '').lower()
+        novelty_patterns = [
+            'release', 'launch', 'announce', 'introduce', 'new', 'latest',
+            'update', 'version', 'breaking', 'just released'
+        ]
+        for pattern in novelty_patterns:
+            if pattern in title:
+                score += 3
+                
+        return min(score, 25)  # Cap à 25 points
+    
+    def _calculate_metadata_bonus(self, article: Dict) -> float:
+        """Calcule un bonus basé sur les métadonnées de qualité"""
+        score = 0
+        metadata = article.get('metadata', {})
+        
+        # Bonus pour nombre de technologies détectées
+        tech_count = len(metadata.get('technologies', []))
+        score += min(tech_count * 2, 10)
+        
+        # Bonus pour tags pertinents
+        tags_count = len(article.get('tags', []))
+        score += min(tags_count, 5)
+        
+        # Bonus pour score de qualité élevé
+        quality_score = article.get('quality_score', 0)
+        if quality_score > 80:
+            score += 15
+        elif quality_score > 60:
+            score += 10
+        elif quality_score > 40:
+            score += 5
+        
+        # Bonus pour technologie spécialisée
+        technology = article.get('technology', 'general')
+        if technology != 'general':
+            score += 8
+        
+        return score
     
     def _generate_domain_post(self, domain_key: str, articles: List[Dict]) -> Dict:
         """Génère un post spécialisé optimisé pour LinkedIn"""

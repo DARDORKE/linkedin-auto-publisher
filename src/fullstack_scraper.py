@@ -1,6 +1,6 @@
 """
 Scraper optimisé pour récupérer des articles tech de qualité
-Version simplifiée et performante
+Version améliorée avec focus sur la qualité et la diversité
 """
 import requests
 from bs4 import BeautifulSoup
@@ -16,11 +16,31 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 from readability import Document
 
+# Import du nouveau scraper amélioré
+try:
+    from .enhanced_scraper import EnhancedFullstackScraper
+    ENHANCED_AVAILABLE = True
+    logger.info("Enhanced scraper available")
+except ImportError as e:
+    ENHANCED_AVAILABLE = False
+    logger.warning(f"Enhanced scraper not available: {e}")
+
 class FullStackDevScraper:
     """Scraper optimisé pour les articles de développement fullstack"""
     
     def __init__(self, db_manager: DatabaseManager = None):
         self.db = db_manager or DatabaseManager()
+        
+        # Utiliser le scraper amélioré si disponible
+        if ENHANCED_AVAILABLE:
+            logger.info("Initializing with enhanced scraper")
+            self.enhanced_scraper = EnhancedFullstackScraper(db_manager)
+            self.use_enhanced = True
+        else:
+            logger.info("Falling back to legacy scraper")
+            self.use_enhanced = False
+            
+        # Configuration legacy (conservée pour compatibilité)
         self.cache_duration_hours = 12
         self.request_timeout = 8
         self.max_retries = 1
@@ -33,10 +53,11 @@ class FullStackDevScraper:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         
-        # Sources de qualité par domaine
-        self._init_quality_sources()
+        # Sources de qualité par domaine (legacy)
+        if not self.use_enhanced:
+            self._init_quality_sources()
         
-        # Mots-clés pour la pertinence
+        # Mots-clés pour la pertinence (legacy)
         self.domain_keywords = {
             'frontend': ['react', 'vue', 'angular', 'svelte', 'css', 'javascript', 'typescript', 
                         'nextjs', 'nuxtjs', 'tailwind', 'webpack', 'vite'],
@@ -107,6 +128,10 @@ class FullStackDevScraper:
         """Configure la session WebSocket pour le suivi des progrès"""
         self.websocket_session_id = session_id
         self.websocket_service = websocket_service
+        
+        # Transférer au scraper amélioré si disponible
+        if self.use_enhanced:
+            self.enhanced_scraper.set_websocket_session(session_id, websocket_service)
     
     def _emit_progress(self, progress_data: Dict[str, Any]) -> None:
         """Émet un événement de progression via WebSocket"""
@@ -119,8 +144,15 @@ class FullStackDevScraper:
     def scrape_all_sources(self, max_articles: int = 40, use_cache: bool = True) -> List[Dict]:
         """
         Scrape toutes les sources et retourne les meilleurs articles
-        Optimisé pour la performance et la qualité
+        Utilise le scraper amélioré si disponible
         """
+        if self.use_enhanced:
+            logger.info("Using enhanced scraper for high-quality articles")
+            return self.enhanced_scraper.scrape_all_sources(max_articles, use_cache)
+        
+        # Fallback vers l'implémentation legacy
+        logger.info("Using legacy scraper")
+        
         # Nettoyer le cache expiré
         self.db.clear_expired_cache()
         
@@ -166,6 +198,11 @@ class FullStackDevScraper:
     
     def scrape_domain_sources(self, domain: str, max_articles: int = 60, use_cache: bool = True) -> List[Dict]:
         """Scrape spécifiquement un domaine"""
+        if self.use_enhanced:
+            logger.info(f"Using enhanced scraper for {domain} domain")
+            return self.enhanced_scraper.scrape_domain_sources(domain, max_articles, use_cache)
+        
+        # Fallback legacy
         if domain not in self.sources:
             logger.error(f"Domain {domain} not supported")
             return []
