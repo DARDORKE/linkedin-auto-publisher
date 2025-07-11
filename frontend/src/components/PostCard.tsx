@@ -203,7 +203,7 @@ export default function PostCard({ post, type, onApprove, onPublish, onDelete, o
               endIcon={showSources ? <ExpandLess /> : <ExpandMore />}
               sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             >
-              {post.sources_count} sources utilisées
+              {post.source_articles?.length || 0} articles utilisés
             </Button>
             <Collapse in={showSources}>
               <Box sx={{ mt: 1, pl: { xs: 1, sm: 2 } }}>
