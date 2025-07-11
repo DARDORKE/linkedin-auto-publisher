@@ -807,15 +807,23 @@ TON CHOISI: {tone['name']} - Caractéristiques: {', '.join(tone['characteristics
 ✅ STRUCTURE À SUIVRE:
 {structure_template}
 
-📝 INSTRUCTIONS FINALES:
-- Longueur: 300-400 mots
-- Utilise le style d'emoji: {tone['emoji_style']}
-- Style de phrases: {tone['sentence_style']}
-- Intègre naturellement les insights extraits
-- Cite élégamment 2-3 sources pertinentes
-- Termine par un call-to-action adapté au format
+📝 INSTRUCTIONS CRITIQUES:
+- LONGUEUR MAXIMALE: 280-350 mots (ABSOLUMENT IMPÉRATIF)
+- UNE SEULE OUVERTURE: Éviter toute répétition ou doublon
+- ÉMOJIS: Maximum 3-4 émojis stratégiques, style {tone['emoji_style']}
+- STYLE: {tone['sentence_style']} - cohérent du début à la fin
+- TON UNIFORME: Maintenir le ton {tone['name']} sans déviation
+- SOURCES: Intégrer naturellement sans surcharger
+- STRUCTURE: Respecter strictement le format {post_format['name']}
+- APPEL À L'ACTION: Une seule question finale percutante
 
-Génère le post LinkedIn en respectant scrupuleusement le format et le ton choisis:
+CONTRAINTES ABSOLUES:
+❌ PAS de doublons dans l'introduction
+❌ PAS de répétitions de phrases
+❌ PAS d'émojis redondants ou excessifs
+❌ PAS de dépassement de longueur
+
+Génère le post LinkedIn en respectant ces contraintes critiques:
 """
         
         return base_prompt
@@ -824,18 +832,18 @@ Génère le post LinkedIn en respectant scrupuleusement le format et le ton choi
         """Retourne les instructions spécifiques au format choisi"""
         format_instructions = {
             'storytelling': """
-- Commence par une anecdote ou une mise en situation captivante
-- Développe une narration avec un début, un milieu et une fin
-- Intègre les données techniques dans l'histoire
-- Termine sur une leçon ou une morale professionnelle
-- Utilise des transitions narratives fluides""",
+- UNE SEULE ouverture narrative (pas de répétition)
+- Maximum 3 paragraphes: situation → développement → leçon
+- Intègre naturellement 1-2 technologies dans l'histoire
+- Termine par UNE question d'engagement
+- Évite les émojis dans le récit principal""",
             
             'listicle': """
-- Titre accrocheur avec un nombre (ex: "5 innovations qui...")
-- Introduction courte qui annonce la valeur
-- Points numérotés clairs et concis (1️⃣, 2️⃣, 3️⃣...)
-- Chaque point = 1 idée forte avec exemple concret
-- Conclusion qui synthétise l'ensemble""",
+- Ouverture avec chiffre accrocheur (ex: "3 innovations qui...")
+- Maximum 3-4 points numérotés (1️⃣, 2️⃣, 3️⃣)
+- Chaque point = 1 phrase + 1 exemple concret
+- Pas plus de 50 mots par point
+- Conclusion actionnable en 1 phrase""",
             
             'question_driven': """
 - Ouvre avec une question provocante ou intrigante
@@ -900,11 +908,11 @@ Génère le post LinkedIn en respectant scrupuleusement le format et le ton choi
 - Minimal en emojis, préfère les chiffres""",
             
             'conversational': """
-- Adresse directe au lecteur ("vous", "tu")
-- Questions rhétoriques fréquentes
-- Langage accessible et exemples du quotidien
-- Parenthèses pour les apartes
-- Ton chaleureux et inclusif""",
+- Adresse directe au lecteur ("vous" uniquement, pas "tu")
+- Maximum 2 questions dans tout le post
+- Langage accessible mais professionnel
+- Éviter les parenthèses excessives
+- Ton bienveillant et expert""",
             
             'authoritative': """
 - Affirmations confiantes et directes
@@ -1172,22 +1180,8 @@ RÉSUMÉ:"""
                 selected_tone
             )
             
-            # Ajouter des variations d'ouverture et de fermeture
-            opening_style = self._get_opening_style(selected_format['name'])
-            closing_style = self._get_closing_style(selected_format['name'])
-            
-            # Générer une ligne d'ouverture variée
-            opening_line = self.style_variations.get_opening_line(opening_style, context)
-            
-            # Générer une ligne de conclusion variée
-            closing_line = self.style_variations.get_closing_line(closing_style, context)
-            
-            # Intégrer les variations si elles n'existent pas déjà
-            if not optimized.startswith(opening_line[:20]):  # Vérifier les 20 premiers caractères
-                optimized = opening_line + "\n\n" + optimized
-            
-            if not optimized.endswith(closing_line[-20:]):  # Vérifier les 20 derniers caractères
-                optimized = optimized + "\n\n" + closing_line
+            # Les variations d'ouverture et fermeture sont gérées par le prompt principal
+            # pour éviter les doublons - désactivées temporairement
         
         # Optimisation standard de la lisibilité LinkedIn
         paragraphs = optimized.split('\n\n')

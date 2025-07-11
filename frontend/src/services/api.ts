@@ -66,13 +66,14 @@ export const scrapeApi = {
       from_cache: boolean;
     }>(`/scrape/${domain}`, { force_refresh: forceRefresh }),
   
-  generateFromSelection: (articles: Article[], domain: string) =>
+  generateFromSelection: (articles: Article[], domain: string, numberOfPosts = 1) =>
     api.post<{
       success: boolean;
       session_id?: string;
-      post: Post;
+      post?: Post;
+      posts?: Post[];
       message: string;
-    }>('/scrape/generate-from-selection', { articles, domain }),
+    }>('/scrape/generate-from-selection', { articles, domain, numberOfPosts }),
 };
 
 export const domainApi = {

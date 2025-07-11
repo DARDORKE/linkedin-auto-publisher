@@ -279,20 +279,23 @@ class GenerateFromSelection(Resource):
     @scrape_ns.doc('generate_from_selection')
     @scrape_ns.expect(api.model('GenerateRequest', {
         'articles': fields.List(fields.Nested(article_model), required=True, description='Articles sélectionnés'),
-        'domain': fields.String(required=True, description='Domaine cible')
+        'domain': fields.String(required=True, description='Domaine cible'),
+        'numberOfPosts': fields.Integer(description='Nombre de posts à générer (1-5)', default=1)
     }))
     @scrape_ns.marshal_with(api.model('GenerateResponse', {
         'success': fields.Boolean(),
         'session_id': fields.String(),
         'post': fields.Nested(post_model),
+        'posts': fields.List(fields.Nested(post_model)),
         'message': fields.String()
     }))
     def post(self):
-        """Génère un post à partir d'articles sélectionnés avec WebSocket"""
+        """Génère un ou plusieurs posts à partir d'articles sélectionnés avec WebSocket"""
         try:
             data = request.get_json()
             articles = data.get('articles', [])
             domain = data.get('domain')
+            numberOfPosts = data.get('numberOfPosts', 1)
             
             if not articles or len(articles) < 2:
                 return {'success': False, 'message': 'At least 2 articles required'}, 400
@@ -300,48 +303,96 @@ class GenerateFromSelection(Resource):
             if not domain:
                 return {'success': False, 'message': 'Domain is required'}, 400
             
+            # Valider numberOfPosts
+            if numberOfPosts < 1 or numberOfPosts > 5:
+                return {'success': False, 'message': 'Number of posts must be between 1 and 5'}, 400
+            
             # Générer un ID de session unique
             session_id = generate_session_id()
             
-            logger.info(f"Starting generation session {session_id} for domain: {domain} with {len(articles)} articles")
+            logger.info(f"Starting generation session {session_id} for domain: {domain} with {len(articles)} articles, {numberOfPosts} posts")
             
             # Démarrer la session WebSocket
             websocket_service.start_generation_session(session_id, domain, len(articles))
             
             generator = get_generator()
             
-            # Passer la session WebSocket au générateur
-            generator.set_websocket_session(session_id, websocket_service)
+            generated_posts = []
             
-            post_data = generator.generate_domain_post(articles, domain)
-            
-            if post_data:
-                post_id = db.save_post(post_data)
-                post_data['id'] = post_id
+            # Générer le nombre de posts demandé
+            for i in range(numberOfPosts):
+                logger.info(f"Generating post {i+1}/{numberOfPosts}")
                 
-                # Terminer la session WebSocket
-                results = {
-                    'post_id': post_id,
+                # Émettre le progrès de début pour ce post
+                start_percentage = int((i / numberOfPosts) * 100)
+                websocket_service.update_generation_progress(session_id, {
+                    'type': 'post_generation',
+                    'current_post': i + 1,
+                    'total_posts': numberOfPosts,
+                    'percentage': start_percentage,
+                    'step': 'starting',
                     'domain': domain,
                     'articles_count': len(articles)
-                }
-                websocket_service.complete_generation_session(session_id, results)
+                })
                 
+                # Désactiver les WebSockets du générateur pour éviter les conflits
+                generator.set_websocket_session(None, None)
+                
+                post_data = generator.generate_domain_post(articles, domain)
+                
+                if post_data:
+                    post_id = db.save_post(post_data)
+                    post_data['id'] = post_id
+                    generated_posts.append(post_data)
+                    
+                    # Progrès de fin pour ce post
+                    end_percentage = int(((i + 1) / numberOfPosts) * 100)
+                    websocket_service.update_generation_progress(session_id, {
+                        'type': 'post_generation',
+                        'current_post': i + 1,
+                        'total_posts': numberOfPosts,
+                        'percentage': end_percentage,
+                        'step': 'completed',
+                        'post_id': post_id,
+                        'domain': domain
+                    })
+                    
+                    logger.info(f"Post {i+1}/{numberOfPosts} generated successfully with ID {post_id}")
+                else:
+                    logger.error(f"Failed to generate post {i+1}/{numberOfPosts}")
+                    websocket_service.send_error(session_id, {
+                        'type': 'generation_error',
+                        'message': f'Failed to generate post {i+1}/{numberOfPosts}'
+                    })
+                    return {'success': False, 'message': f'Failed to generate post {i+1}/{numberOfPosts}'}, 500
+            
+            # Terminer la session WebSocket
+            results = {
+                'posts': generated_posts,
+                'domain': domain,
+                'articles_count': len(articles),
+                'posts_count': len(generated_posts)
+            }
+            websocket_service.complete_generation_session(session_id, results)
+            
+            # Réponse conditionnelle selon le nombre de posts
+            if numberOfPosts == 1:
                 return {
                     'success': True,
                     'session_id': session_id,
-                    'post': post_data,
+                    'post': generated_posts[0],
                     'message': 'Post generated successfully'
                 }
             else:
-                websocket_service.send_error(session_id, {
-                    'type': 'generation_error',
-                    'message': 'Failed to generate post'
-                })
-                return {'success': False, 'message': 'Failed to generate post'}, 500
+                return {
+                    'success': True,
+                    'session_id': session_id,
+                    'posts': generated_posts,
+                    'message': f'{len(generated_posts)} posts generated successfully'
+                }
                 
         except Exception as e:
-            logger.error(f"Error generating post: {e}")
+            logger.error(f"Error generating posts: {e}")
             if 'session_id' in locals():
                 websocket_service.send_error(session_id, {
                     'type': 'generation_error',

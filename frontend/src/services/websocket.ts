@@ -19,12 +19,15 @@ export interface ScrapingProgressEvent {
 
 export interface GenerationProgressEvent {
   session_id: string;
-  type: 'generation_started' | 'generation_completed' | 'generation_failed' | 'generation_error' | 'step_completed';
+  type: 'generation_started' | 'generation_completed' | 'generation_failed' | 'generation_error' | 'step_completed' | 'post_generation';
   domain?: string;
   articles_count?: number;
   post_generated?: boolean;
   step?: string;
   percentage?: number;
+  current_post?: number;
+  total_posts?: number;
+  post_id?: number;
   error?: string;
   timestamp: string;
 }
@@ -54,6 +57,8 @@ export interface SessionCompletedEvent {
     from_cache?: boolean;
     post_id?: number;
     articles_count?: number;
+    posts?: any[];
+    posts_count?: number;
   };
   timestamp: string;
 }

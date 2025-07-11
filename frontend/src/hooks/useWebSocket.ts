@@ -93,18 +93,40 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       case 'generation_started':
         return {
           message: `Génération d'un post ${data.domain} avec ${data.articles_count} articles...`,
-          percentage: 10
+          percentage: 5
         };
+      case 'post_generation':
+        const currentPost = data.current_post || 1;
+        const totalPosts = data.total_posts || 1;
+        const postProgress = data.percentage || 0;
+        const postStep = data.step || 'en_cours';
+        
+        if (postStep === 'starting') {
+          return {
+            message: `Début génération post ${currentPost}/${totalPosts}...`,
+            percentage: postProgress
+          };
+        } else if (postStep === 'completed') {
+          return {
+            message: `Post ${currentPost}/${totalPosts} terminé ${data.post_id ? `(ID: ${data.post_id})` : ''}`,
+            percentage: postProgress
+          };
+        } else {
+          return {
+            message: `Génération post ${currentPost}/${totalPosts}...`,
+            percentage: postProgress
+          };
+        }
       case 'step_completed':
-        const percentage = (data as any).percentage || 50;
-        const step = (data as any).step || 'Traitement';
+        const percentage = data.percentage || 50;
+        const stepName = data.step || 'Traitement';
         return {
-          message: `${step}...`,
+          message: `${stepName}...`,
           percentage: percentage
         };
       case 'generation_completed':
         return {
-          message: 'Post généré avec succès !',
+          message: 'Génération terminée avec succès !',
           percentage: 100
         };
       case 'generation_failed':
@@ -154,7 +176,8 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           progress: null,
           error: null
         }));
-        updateProgress('generation_started', `Génération d'un post ${data.domain}...`, 0, data);
+        const articlesCount = data.articles_count || 0;
+        updateProgress('generation_started', `Génération avec ${articlesCount} articles...`, 0, data);
         options.onGenerationStarted?.(data);
       },
       onGenerationProgress: (data) => {
@@ -163,7 +186,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         options.onGenerationProgress?.(data);
       },
       onGenerationCompleted: (data) => {
-        updateProgress('generation_completed', 'Post généré avec succès !', 100, data);
+        const postsCount = data.results?.posts?.length || data.results?.posts_count || 1;
+        const message = postsCount > 1 
+          ? `${postsCount} posts générés avec succès !`
+          : 'Post généré avec succès !';
+        updateProgress('generation_completed', message, 100, data);
         setState(prev => ({ ...prev, sessionType: null, currentSession: null }));
         options.onGenerationCompleted?.(data);
       },

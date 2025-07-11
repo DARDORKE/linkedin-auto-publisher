@@ -65,6 +65,10 @@ import {
   LinearProgress,
   IconButton,
   Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Refresh,
@@ -91,6 +95,7 @@ export default function ManualScraping() {
   const [scrapingTime, setScrapingTime] = useState<number | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
+  const [numberOfPosts, setNumberOfPosts] = useState<number>(1);
 
   const { data: domainsData } = useQuery({
     queryKey: ['domains'],
@@ -109,13 +114,15 @@ export default function ManualScraping() {
       }
       toast.success(`${data.results.total_articles} articles trouvés`);
     },
-    onGenerationCompleted: () => {
-      toast.success('Post généré avec succès');
+    onGenerationCompleted: (data) => {
+      const postsCount = data.results?.posts?.length || numberOfPosts;
+      toast.success(`${postsCount} post${postsCount > 1 ? 's' : ''} généré${postsCount > 1 ? 's' : ''} avec succès`);
       queryClient.invalidateQueries({ queryKey: ['posts', 'pending'] });
       // Reset
       setSelectedArticles([]);
       setScrapedArticles([]);
       setSelectedDomain('');
+      setNumberOfPosts(1);
     },
     onError: (data) => {
       toast.error(`Erreur: ${data.error.message}`);
@@ -143,8 +150,8 @@ export default function ManualScraping() {
   });
 
   const generateMutation = useMutation({
-    mutationFn: ({ articles, domain }: { articles: Article[]; domain: string }) =>
-      scrapeApi.generateFromSelection(articles, domain),
+    mutationFn: ({ articles, domain, numberOfPosts }: { articles: Article[]; domain: string; numberOfPosts: number }) =>
+      scrapeApi.generateFromSelection(articles, domain, numberOfPosts),
     onSuccess: (data) => {
       // Rejoindre la session WebSocket si elle existe
       if (data.data.session_id) {
@@ -199,7 +206,7 @@ export default function ManualScraping() {
 
   const handleGenerate = () => {
     const articles = selectedArticles.map(index => scrapedArticles[index]);
-    generateMutation.mutate({ articles, domain: selectedDomain });
+    generateMutation.mutate({ articles, domain: selectedDomain, numberOfPosts });
   };
 
   const handleOpenArticle = (article: Article) => {
@@ -437,8 +444,36 @@ export default function ManualScraping() {
         <Card>
           <CardContent sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 3 } }}>
             <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-              3. Générer le post
+              3. Générer les posts
             </Typography>
+            
+            {/* Contrôle du nombre de posts */}
+            <Box sx={{ mb: 3 }}>
+              <FormControl sx={{ minWidth: 200, mb: 2 }}>
+                <InputLabel id="number-of-posts-label">Nombre de posts</InputLabel>
+                <Select
+                  labelId="number-of-posts-label"
+                  value={numberOfPosts}
+                  label="Nombre de posts"
+                  onChange={(e) => setNumberOfPosts(e.target.value as number)}
+                  size="small"
+                >
+                  <MenuItem value={1}>1 post</MenuItem>
+                  <MenuItem value={2}>2 posts</MenuItem>
+                  <MenuItem value={3}>3 posts</MenuItem>
+                  <MenuItem value={4}>4 posts</MenuItem>
+                  <MenuItem value={5}>5 posts</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <Alert severity="info" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                {numberOfPosts === 1 
+                  ? "Un seul post sera généré avec un style aléatoire."
+                  : `${numberOfPosts} posts seront générés avec des styles différents pour maximiser la diversité.`
+                }
+              </Alert>
+            </Box>
+
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
               <Button
                 variant="contained"
@@ -448,7 +483,10 @@ export default function ManualScraping() {
                 startIcon={generateMutation.isPending ? <CircularProgress size={20} /> : <Send />}
                 sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
               >
-                {generateMutation.isPending ? 'Génération...' : 'Générer le post'}
+                {generateMutation.isPending 
+                  ? `Génération de ${numberOfPosts} post${numberOfPosts > 1 ? 's' : ''}...` 
+                  : `Générer ${numberOfPosts} post${numberOfPosts > 1 ? 's' : ''}`
+                }
               </Button>
               {selectedArticles.length < 2 && (
                 <Alert severity="warning" sx={{ flex: 1, fontSize: { xs: '0.875rem', sm: '1rem' } }}>

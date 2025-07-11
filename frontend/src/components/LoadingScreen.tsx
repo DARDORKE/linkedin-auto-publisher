@@ -123,6 +123,25 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
                       </Typography>
                     </>
                   )}
+                  {progressDetails.type === 'post_generation' && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">
+                        Post: {progressDetails.current_post}/{progressDetails.total_posts}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Domaine: {progressDetails.domain}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Étape: {progressDetails.step === 'starting' ? 'Démarrage' : 
+                               progressDetails.step === 'completed' ? 'Terminé' : 'En cours'}
+                      </Typography>
+                      {progressDetails.post_id && (
+                        <Typography variant="caption" color="text.secondary">
+                          ID du post: {progressDetails.post_id}
+                        </Typography>
+                      )}
+                    </>
+                  )}
                 </Stack>
               </Paper>
             )}
