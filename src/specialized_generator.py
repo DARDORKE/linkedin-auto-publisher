@@ -4,6 +4,8 @@ import os
 from loguru import logger
 import json
 from datetime import datetime
+import random
+from .post_style_variations import PostStyleVariations
 
 class SpecializedPostGenerator:
     def __init__(self):
@@ -17,6 +19,9 @@ class SpecializedPostGenerator:
         # WebSocket session pour le suivi des progrès
         self.websocket_session_id = None
         self.websocket_service = None
+        
+        # Initialiser le gestionnaire de variations de style
+        self.style_variations = PostStyleVariations()
         
         # Définir les domaines et leurs spécialités
         self.domains = {
@@ -532,14 +537,14 @@ class SpecializedPostGenerator:
             
             content = response.text
             
-            # Post-traitement pour LinkedIn
+            # Post-traitement pour LinkedIn avec variations de style
             self._emit_progress({
                 'type': 'step_completed',
                 'step': 'Optimisation LinkedIn',
                 'domain': domain_key,
                 'percentage': 75
             })
-            optimized_content = self._optimize_for_linkedin(content, domain_key)
+            optimized_content = self._optimize_for_linkedin(content, domain_key, article_context)
             
             # Générer hashtags intelligents
             self._emit_progress({
@@ -548,7 +553,7 @@ class SpecializedPostGenerator:
                 'domain': domain_key,
                 'percentage': 85
             })
-            hashtags_str = self._generate_smart_hashtags(top_articles, domain_key)
+            hashtags_str = self._generate_smart_hashtags(top_articles, domain_key, article_context)
             hashtags_list = hashtags_str.split() if hashtags_str else []
             
             # Générer la section sources améliorée
@@ -558,7 +563,7 @@ class SpecializedPostGenerator:
                 'domain': domain_key,
                 'percentage': 95
             })
-            sources_section = self._generate_enhanced_sources(domain_key, top_articles)
+            sources_section = self._generate_enhanced_sources(domain_key, top_articles, article_context)
             
             # Combiner tous les éléments
             full_content = optimized_content + "\n\n" + hashtags_str + "\n\n" + sources_section
@@ -708,7 +713,16 @@ class SpecializedPostGenerator:
         return insights[:3]  # Max 3 insights par article
     
     def _create_optimized_prompt(self, domain_key: str, domain_info: Dict, articles: List[Dict], context: Dict) -> str:
-        """Crée un prompt optimisé basé sur le contexte des articles"""
+        """Crée un prompt optimisé basé sur le contexte des articles avec variations de style"""
+        
+        # Sélectionner un format et un ton aléatoires
+        post_format = self.style_variations.get_random_format(context)
+        tone = self.style_variations.get_random_tone(post_format['name'])
+        
+        # Stocker les choix de style dans le contexte pour usage ultérieur
+        context['selected_format'] = post_format
+        context['selected_tone'] = tone
+        context['domain_name'] = domain_info['name']
         
         # Construction dynamique du résumé des articles
         articles_summary = self._build_contextual_summary(articles, context)
@@ -716,6 +730,7 @@ class SpecializedPostGenerator:
         # Technologies tendances pour ce batch
         trending_techs = [tech for tech, _ in context['trending_technologies']]
         tech_focus = ', '.join(trending_techs[:4]) if trending_techs else 'diverses technologies'
+        context['main_technology'] = trending_techs[0] if trending_techs else 'technologie'
         
         # Entreprises clés
         key_companies = [comp for comp, _ in context['key_companies']]
@@ -724,6 +739,7 @@ class SpecializedPostGenerator:
         # Thèmes clés
         key_themes = [theme for theme, _ in context['key_themes']]
         themes_context = f"Thèmes dominants: {', '.join(key_themes[:3])}" if key_themes else ""
+        context['main_topic'] = key_themes[0] if key_themes else 'innovation tech'
         
         # Insights du contenu
         content_insights = context.get('content_insights', [])
@@ -742,10 +758,34 @@ class SpecializedPostGenerator:
             'current': ''
         }.get(context.get('temporal_context', 'current'), '')
         
-        # Prompts optimisés par domaine
-        optimized_prompts = {
-            'frontend': f"""
-Tu es un expert en développement frontend reconnu sur LinkedIn. Rédige un post engageant sur les dernières actualités frontend.
+        # Générer le prompt dynamique basé sur le format et le ton sélectionnés
+        return self._generate_dynamic_prompt(
+            domain_key, domain_info, articles, context, 
+            post_format, tone, articles_summary, tech_focus, 
+            key_companies, themes_context, insights_context,
+            urgency_tone, temporal_indicators
+        )
+    
+    def _generate_dynamic_prompt(self, domain_key: str, domain_info: Dict, articles: List[Dict], 
+                                 context: Dict, post_format: Dict, tone: Dict, articles_summary: str,
+                                 tech_focus: str, key_companies: List[str], themes_context: str,
+                                 insights_context: str, urgency_tone: str, temporal_indicators: str) -> str:
+        """Génère un prompt dynamique basé sur le format et le ton sélectionnés"""
+        
+        # Adapter les consignes selon le format
+        format_instructions = self._get_format_instructions(post_format, tone)
+        
+        # Adapter le style d'écriture selon le ton
+        tone_instructions = self._get_tone_instructions(tone)
+        
+        # Générer la structure selon le format
+        structure_template = self._get_structure_template(post_format, context)
+        
+        # Prompt de base adaptatif
+        base_prompt = f"""
+Tu es un expert en {domain_info['name']} reconnu sur LinkedIn. 
+FORMAT CHOISI: {post_format['name']} - {post_format['description']}
+TON CHOISI: {tone['name']} - Caractéristiques: {', '.join(tone['characteristics'])}
 
 🎯 CONTEXTE ENRICHI:
 • Technologies tendances: {tech_focus}
@@ -758,165 +798,202 @@ Tu es un expert en développement frontend reconnu sur LinkedIn. Rédige un post
 📰 SOURCES ANALYSÉES ({len(articles)} articles):
 {articles_summary}
 
-✅ CONSIGNES LINKEDIN OPTIMISÉES:
-1. Ton professionnel mais accessible, adapté aux développeurs frontend
-2. Utiliser des émojis de façon stratégique (2-3 maximum)
-3. Structure avec des bullet points pour la lisibilité
-4. Inclure une question engageante spécifique au contenu analysé
-5. Mentionner l'impact concret pour les équipes frontend
-6. Citer les sources avec élégance: "selon [Source]"
-7. 280-350 mots pour optimiser l'engagement LinkedIn
-8. Utiliser les insights extraits pour enrichir le contenu
-9. Adapter le ton à la temporalité des news
+✅ CONSIGNES DE FORMAT ({post_format['name']}):
+{format_instructions}
 
-🏗️ STRUCTURE OPTIMISÉE:
-• {temporal_indicators}{urgency_tone}Accroche percutante basée sur les insights réels
-• Context: Pourquoi c'est important maintenant (lien avec les thèmes identifiés)
-• 🔥 Points clés (2-3 développements majeurs avec extraits concrets)
-• 💡 Impact pratique pour les développeurs (basé sur les insights)
-• ❓ Question d'engagement spécifique au contenu analysé
+✅ CONSIGNES DE TON ({tone['name']}):
+{tone_instructions}
 
-📝 STYLE LINKEDIN ADAPTATIF:
-- Phrases courtes et percutantes
-- Utiliser les insights extraits pour donner des exemples concrets
-- Ton informatif mais enthousiasmant
-- Focus sur la valeur ajoutée pour la communauté dev
-- Adapter l'urgence du ton selon le contexte temporel
+✅ STRUCTURE À SUIVRE:
+{structure_template}
 
-🎯 ÉLÉMENTS À INTÉGRER:
-- Utiliser les insights extraits comme exemples concrets
-- Mentionner les thèmes dominants identifiés
-- Adapter le call-to-action selon le type d'articles analysés
+📝 INSTRUCTIONS FINALES:
+- Longueur: 300-400 mots
+- Utilise le style d'emoji: {tone['emoji_style']}
+- Style de phrases: {tone['sentence_style']}
+- Intègre naturellement les insights extraits
+- Cite élégamment 2-3 sources pertinentes
+- Termine par un call-to-action adapté au format
 
-Rédige le post LinkedIn frontend optimisé:
-""",
-            
-            'backend': f"""
-Tu es un architecte backend senior influent sur LinkedIn. Crée un post captivant sur l'actualité backend/infrastructure.
-
-🎯 CONTEXTE TECHNIQUE ENRICHI:
-• Technologies phares: {tech_focus}
-• Acteurs majeurs: {', '.join(key_companies) if key_companies else 'écosystème complet'}{company_context}
-• {themes_context}
-• {insights_context}
-• Complexité: {context['technical_depth']}
-• Priorité: {context['urgency_level']} | Temporalité: {context.get('temporal_context', 'current')}
-
-📊 SOURCES ANALYSÉES ({len(articles)} articles):
-{articles_summary}
-
-✅ CONSIGNES LINKEDIN PRO OPTIMISÉES:
-1. Expertise technique mais accessible aux lead devs
-2. Émojis techniques pertinents (⚡🔧🚀) avec parcimonie
-3. Structure claire avec sections définies
-4. Angle "impact business" pour toucher les décideurs
-5. Implications concrètes pour l'architecture et les équipes
-6. Citations élégantes: "d'après [Source]" ou "selon [Source]"
-7. 300-380 mots pour maximiser l'engagement professionnel
-8. Utiliser les insights extraits pour donner des métriques/exemples concrets
-9. Adapter le ton à l'urgence et la temporalité des développements
-
-🏛️ ARCHITECTURE DU POST:
-• {temporal_indicators}{urgency_tone}Hook technique percutant basé sur les insights réels
-• Contexte: Enjeux actuels pour les équipes backend (lien avec thèmes identifiés)
-• ⚡ Développements clés (2-3 points avec impact technique et métriques)
-• 🔧 Implications pratiques (performance, scalabilité, sécurité) avec exemples concrets
-• 💭 Question stratégique spécifique au contenu analysé
-
-📈 ANGLE LINKEDIN ADAPTATIF:
-- Vocabulaire technique précis mais accessible
-- Focus sur ROI et impact métier avec données concrètes
-- Ton d'expert consultant adapté à la temporalité
-- Valeur actionnable pour les professionnels
-- Utiliser les insights pour donner des exemples chiffrés
-
-🎯 ÉLÉMENTS TECHNIQUES À INTÉGRER:
-- Utiliser les insights extraits pour donner des métriques de performance
-- Mentionner les thèmes dominants avec implications architecturales
-- Adapter le niveau d'urgence selon le contexte temporel
-- Inclure des implications concrètes pour les équipes
-
-Crée le post LinkedIn backend expert:
-""",
-            
-            'ai': f"""
-Tu es un expert IA/ML reconnu sur LinkedIn. Compose un post viral sur l'actualité intelligence artificielle.
-
-🧠 CONTEXTE:
-• Technologies IA: {tech_focus}
-• Leaders du secteur: {', '.join(key_companies) if key_companies else 'écosystème IA global'}
-• Niveau: {context['technical_depth']}
-• Impact: {context['urgency_level']}
-
-🤖 SOURCES EXPERT ({len(articles)} articles):
-{articles_summary}
-
-✅ OPTIMISATION LINKEDIN IA:
-1. Ton visionnaire mais ancré dans le réel
-2. Émojis IA stratégiques (🤖🧠⚡) pour l'identité visuelle
-3. Structure narrative captivante
-4. Équilibre technique/business pour audience mixte
-5. Impact sur l'industrie ET les développeurs
-6. Sources crédibles: "selon [Source]" avec autorité
-7. 320-400 mots pour contenu premium IA
-8. Éviter le hype, privilégier les faits
-
-🚀 BLUEPRINT VIRAL:
-• {urgency_tone}Accroche disruptive (évolution majeure + émoji)
-• Vision: Ce que ça change pour l'industrie tech
-• 🧠 Innovations clés (2-3 avancées concrètes)
-• 💼 Impact métier (productivité, nouveaux usages)
-• 🔮 Question prospective pour générer l'engagement
-
-🎯 STYLE THOUGHT LEADER:
-- Vocabulaire IA précis sans être hermétique
-- Perspective industrie + implications pratiques
-- Ton d'expert consultant en transformation
-- Contenu référence pour la communauté IA
-
-Produis le post LinkedIn IA thought leader:
-""",
-            
-            'general': f"""
-Tu es un tech leader influent sur LinkedIn. Crée un post engageant sur les tendances tech transversales.
-
-💡 CONTEXTE MULTI-DOMAINES:
-• Technologies émergentes: {tech_focus}
-• Écosystème: {', '.join(key_companies) if key_companies else 'industrie tech globale'}
-• Audience: {context['technical_depth']} (mixed technical/business)
-• Momentum: {context['urgency_level']}
-
-📡 SOURCES DIVERSIFIÉES ({len(articles)} articles):
-{articles_summary}
-
-✅ STRATÉGIE LINKEDIN CROSS-TECH:
-1. Ton de tech leader accessible à tous profils
-2. Émojis universels tech (💻🚀⚡) pour large audience
-3. Structure claire pour professionnels occupés
-4. Angle transformation digitale et innovation
-5. Impact sur l'écosystème tech global
-6. Crédibilité: "selon [Source]" avec expertise
-7. 300-370 mots pour engagement optimal cross-audience
-8. Vision holistique de l'évolution tech
-
-🌟 TEMPLATE CROSS-IMPACT:
-• {urgency_tone}Vision macro (tendance industry-wide)
-• Contexte: Pourquoi c'est un tournant pour la tech
-• 🚀 Évolutions marquantes (2-3 développements transversaux)
-• 💼 Impact écosystème (startups, scale-ups, enterprise)
-• 🤔 Question stratégique pour tous les profils tech
-
-🎪 POSITIONNEMENT THOUGHT LEADER:
-- Perspective 360° sur l'innovation tech
-- Ton de guide pour les décisions stratégiques
-- Contenu fédérateur pour la communauté tech
-- Valeur ajoutée pour tous les métiers du numérique
-
-Crée le post LinkedIn tech leader:
+Génère le post LinkedIn en respectant scrupuleusement le format et le ton choisis:
 """
+        
+        return base_prompt
+    
+    def _get_format_instructions(self, post_format: Dict, tone: Dict) -> str:
+        """Retourne les instructions spécifiques au format choisi"""
+        format_instructions = {
+            'storytelling': """
+- Commence par une anecdote ou une mise en situation captivante
+- Développe une narration avec un début, un milieu et une fin
+- Intègre les données techniques dans l'histoire
+- Termine sur une leçon ou une morale professionnelle
+- Utilise des transitions narratives fluides""",
+            
+            'listicle': """
+- Titre accrocheur avec un nombre (ex: "5 innovations qui...")
+- Introduction courte qui annonce la valeur
+- Points numérotés clairs et concis (1️⃣, 2️⃣, 3️⃣...)
+- Chaque point = 1 idée forte avec exemple concret
+- Conclusion qui synthétise l'ensemble""",
+            
+            'question_driven': """
+- Ouvre avec une question provocante ou intrigante
+- Explore différentes réponses possibles
+- Présente des perspectives contrastées
+- Guide vers une réflexion plus profonde
+- Termine par une nouvelle question ouverte""",
+            
+            'comparison': """
+- Présente clairement les deux options dès le début
+- Structure en "D'un côté... De l'autre..."
+- Analyse objective des avantages/inconvénients
+- Utilise des exemples concrets pour chaque option
+- Conclusion nuancée avec recommandation contextuelle""",
+            
+            'breaking_news': """
+- Lead percutant façon journalistique
+- Réponses aux 5W (What, When, Where, Who, Why)
+- Informations par ordre d'importance décroissante
+- Citations et sources crédibles
+- Impact immédiat et implications futures""",
+            
+            'deep_dive': """
+- Introduction qui pose le contexte technique
+- Analyse structurée en sections claires
+- Explications techniques avec analogies accessibles
+- Exemples de code ou architectures si pertinent
+- Conclusion avec ressources pour approfondir""",
+            
+            'hot_take': """
+- Opinion forte dès la première ligne
+- Arguments structurés et sourcés
+- Anticipe et adresse les contre-arguments
+- Ton confiant mais respectueux
+- Invite au débat constructif""",
+            
+            'tutorial_mini': """
+- Promesse claire de ce qu'on va apprendre
+- Étapes numérotées et actionnables
+- Tips et raccourcis pratiques
+- Pièges à éviter clairement identifiés
+- Exercice ou défi pour pratiquer"""
         }
         
-        return optimized_prompts.get(domain_key, optimized_prompts['general'])
+        return format_instructions.get(post_format['name'], format_instructions['storytelling'])
+    
+    def _get_tone_instructions(self, tone: Dict) -> str:
+        """Retourne les instructions spécifiques au ton choisi"""
+        tone_instructions = {
+            'enthusiastic': """
+- Utilise des superlatifs et des exclamations (avec modération)
+- Montre de l'énergie et de la passion
+- Célèbre les innovations et les réussites
+- Phrases courtes et dynamiques
+- Emojis expressifs pour ponctuer""",
+            
+            'analytical': """
+- Focus sur les données et métriques concrètes
+- Argumentation logique et structurée
+- Évite les jugements émotionnels
+- Utilise des connecteurs logiques
+- Minimal en emojis, préfère les chiffres""",
+            
+            'conversational': """
+- Adresse directe au lecteur ("vous", "tu")
+- Questions rhétoriques fréquentes
+- Langage accessible et exemples du quotidien
+- Parenthèses pour les apartes
+- Ton chaleureux et inclusif""",
+            
+            'authoritative': """
+- Affirmations confiantes et directes
+- Expertise démontrée par les exemples
+- Évite les hésitations ("peut-être", "il semble")
+- Structure claire et professionnelle
+- Leadership d'opinion assumé""",
+            
+            'curious': """
+- Questions ouvertes fréquentes
+- Exploration des possibilités
+- "Et si...", "Imaginez que..."
+- Encourage la réflexion collective
+- Ton humble malgré l'expertise""",
+            
+            'pragmatic': """
+- Focus sur l'actionnable et le ROI
+- Exemples concrets d'implémentation
+- Métriques de succès claires
+- Évite la théorie pure
+- Solutions pratiques immédiates"""
+        }
+        
+        return tone_instructions.get(tone['name'], tone_instructions['conversational'])
+    
+    def _get_structure_template(self, post_format: Dict, context: Dict) -> str:
+        """Génère un template de structure adapté au format"""
+        structure_templates = {
+            'storytelling': f"""
+1. 🎬 Accroche narrative (situation concrète ou anecdote)
+2. 📖 Développement de l'histoire avec les insights tech
+3. 🔍 Moment de révélation ou tournant
+4. 💡 Leçon tirée pour les professionnels {context.get('domain_name', 'tech')}
+5. 🎯 Call-to-action lié à la morale de l'histoire""",
+            
+            'listicle': f"""
+1. 📋 Titre avec nombre + promesse de valeur
+2. 🎯 Intro courte (pourquoi cette liste maintenant?)
+3. 1️⃣ Premier point avec exemple concret
+4. 2️⃣ Deuxième point avec métrique/preuve
+5. 3️⃣ Troisième point avec impact business
+6. ✅ Conclusion actionnable""",
+            
+            'question_driven': f"""
+1. ❓ Question d'ouverture intrigante sur {context.get('main_topic', 'le sujet')}
+2. 🤔 Exploration du contexte et des enjeux
+3. 💭 Présentation de différentes perspectives
+4. 🔍 Analyse basée sur les sources
+5. 🎯 Nouvelle question pour continuer la réflexion""",
+            
+            'comparison': f"""
+1. ⚖️ Introduction du dilemme technique
+2. ➡️ Option A: avantages et cas d'usage
+3. ⬅️ Option B: avantages et cas d'usage
+4. 📊 Analyse comparative objective
+5. 🎯 Recommandation contextuelle""",
+            
+            'breaking_news': f"""
+1. 🚨 Lead d'actualité percutant
+2. 📰 Faits essentiels (qui, quoi, quand, où)
+3. 💥 Impact immédiat sur l'écosystème
+4. 🔮 Implications futures
+5. 📢 Call-to-action d'urgence""",
+            
+            'deep_dive': f"""
+1. 🔬 Contexte technique et problématique
+2. 🧪 Analyse détaillée avec données
+3. 💻 Exemples pratiques/techniques
+4. 📈 Résultats et métriques
+5. 📚 Ressources pour approfondir""",
+            
+            'hot_take': f"""
+1. 🔥 Opinion forte et claire
+2. 📍 Arguments principaux avec preuves
+3. 🎯 Contre-arguments anticipés
+4. 💪 Renforcement de la position
+5. 💬 Invitation au débat constructif""",
+            
+            'tutorial_mini': f"""
+1. 🎓 Ce que vous allez apprendre
+2. ✅ Prérequis rapides
+3. 1️⃣ Première étape clé
+4. 2️⃣ Deuxième étape avec astuce
+5. 💡 Pro tip bonus
+6. 🚀 Défi pratique à relever"""
+        }
+        
+        return structure_templates.get(post_format['name'], structure_templates['storytelling'])
+    
     
     def _build_contextual_summary(self, articles: List[Dict], context: Dict) -> str:
         """Construit un résumé contextuel enrichi des articles avec LLM"""
@@ -1077,24 +1154,64 @@ RÉSUMÉ:"""
         
         return ""
     
-    def _optimize_for_linkedin(self, content: str, domain_key: str) -> str:
-        """Optimise le contenu pour LinkedIn"""
+    def _optimize_for_linkedin(self, content: str, domain_key: str, context: Dict) -> str:
+        """Optimise le contenu pour LinkedIn avec variations de style"""
+        # Récupérer le format et le ton sélectionnés
+        selected_format = context.get('selected_format', {})
+        selected_tone = context.get('selected_tone', {})
+        
         # Nettoyage de base
         optimized = content.strip()
         
-        # Ajouter des sauts de ligne pour la lisibilité LinkedIn
-        # Remplacer les longs paragraphes par des sections plus courtes
+        # Appliquer les variations de style si disponibles
+        if hasattr(self, 'style_variations') and selected_format and selected_tone:
+            # Appliquer les variations de format et de ton
+            optimized = self.style_variations.format_with_variations(
+                optimized, 
+                selected_format.get('name', 'storytelling'),
+                selected_tone
+            )
+            
+            # Ajouter des variations d'ouverture et de fermeture
+            opening_style = self._get_opening_style(selected_format['name'])
+            closing_style = self._get_closing_style(selected_format['name'])
+            
+            # Générer une ligne d'ouverture variée
+            opening_line = self.style_variations.get_opening_line(opening_style, context)
+            
+            # Générer une ligne de conclusion variée
+            closing_line = self.style_variations.get_closing_line(closing_style, context)
+            
+            # Intégrer les variations si elles n'existent pas déjà
+            if not optimized.startswith(opening_line[:20]):  # Vérifier les 20 premiers caractères
+                optimized = opening_line + "\n\n" + optimized
+            
+            if not optimized.endswith(closing_line[-20:]):  # Vérifier les 20 derniers caractères
+                optimized = optimized + "\n\n" + closing_line
+        
+        # Optimisation standard de la lisibilité LinkedIn
         paragraphs = optimized.split('\n\n')
         readable_paragraphs = []
         
+        # Adapter la longueur des paragraphes selon le style de phrases
+        sentence_style = selected_tone.get('sentence_style', 'varied')
+        max_paragraph_length = {
+            'short_punchy': 150,
+            'structured': 250,
+            'varied': 200,
+            'declarative': 220,
+            'interrogative': 180,
+            'direct': 160
+        }.get(sentence_style, 200)
+        
         for paragraph in paragraphs:
-            if len(paragraph) > 300:  # Paragraphe trop long
+            if len(paragraph) > max_paragraph_length:
                 # Diviser aux phrases
                 sentences = paragraph.split('. ')
                 current_chunk = ""
                 
                 for sentence in sentences:
-                    if len(current_chunk + sentence) < 200:
+                    if len(current_chunk + sentence) < max_paragraph_length - 50:
                         current_chunk += sentence + ". "
                     else:
                         if current_chunk:
@@ -1108,19 +1225,87 @@ RÉSUMÉ:"""
         
         return "\n\n".join(readable_paragraphs)
     
-    def _generate_smart_hashtags(self, articles: List[Dict], domain_key: str) -> str:
-        """Génère des hashtags intelligents basés sur le contenu"""
+    def _get_opening_style(self, format_name: str) -> str:
+        """Retourne le style d'ouverture approprié pour le format"""
+        opening_styles = {
+            'storytelling': 'story_opener',
+            'listicle': 'stat_shock',
+            'question_driven': 'question_hook',
+            'comparison': 'question_hook',
+            'breaking_news': 'breaking_opener',
+            'deep_dive': 'stat_shock',
+            'hot_take': 'controversial_opener',
+            'tutorial_mini': 'question_hook'
+        }
+        return opening_styles.get(format_name, 'question_hook')
+    
+    def _get_closing_style(self, format_name: str) -> str:
+        """Retourne le style de fermeture approprié pour le format"""
+        closing_styles = {
+            'storytelling': 'call_to_action',
+            'listicle': 'challenge',
+            'question_driven': 'question_engage',
+            'comparison': 'question_engage',
+            'breaking_news': 'prediction',
+            'deep_dive': 'call_to_action',
+            'hot_take': 'question_engage',
+            'tutorial_mini': 'challenge'
+        }
+        return closing_styles.get(format_name, 'question_engage')
+    
+    def _generate_smart_hashtags(self, articles: List[Dict], domain_key: str, context: Dict) -> str:
+        """Génère des hashtags intelligents basés sur le contenu avec variations"""
         hashtags = set()
         
-        # Hashtags de base par domaine
-        base_hashtags = {
-            'frontend': ['#Frontend', '#JavaScript', '#WebDev', '#React', '#CSS'],
-            'backend': ['#Backend', '#API', '#DevOps', '#CloudComputing', '#Microservices'],
-            'ai': ['#AI', '#MachineLearning', '#DeepLearning', '#LLM', '#Innovation'],
-            'general': ['#Tech', '#Development', '#Innovation', '#DigitalTransformation']
+        # Récupérer le ton sélectionné pour adapter les hashtags
+        selected_tone = context.get('selected_tone', {})
+        selected_format = context.get('selected_format', {})
+        
+        # Hashtags de base par domaine avec variations
+        base_hashtags_variations = {
+            'frontend': {
+                'core': ['#Frontend', '#JavaScript', '#WebDev'],
+                'trendy': ['#FrontendDev', '#ModernWeb', '#UIEngineering'],
+                'specific': ['#ReactJS', '#VueJS', '#AngularDev', '#SvelteJS'],
+                'community': ['#100DaysOfCode', '#WebDevCommunity', '#FrontendMasters']
+            },
+            'backend': {
+                'core': ['#Backend', '#API', '#DevOps'],
+                'trendy': ['#CloudNative', '#ServerlessComputing', '#InfraAsCode'],
+                'specific': ['#NodeJS', '#Python', '#Golang', '#RustLang'],
+                'community': ['#BackendDevelopment', '#SystemDesign', '#TechArchitecture']
+            },
+            'ai': {
+                'core': ['#AI', '#MachineLearning', '#DeepLearning'],
+                'trendy': ['#GenerativeAI', '#LLMs', '#AIEngineering'],
+                'specific': ['#ChatGPT', '#Claude', '#Gemini', '#OpenAI'],
+                'community': ['#AIcommunity', '#MLOps', '#DataScience']
+            },
+            'general': {
+                'core': ['#Tech', '#Development', '#Innovation'],
+                'trendy': ['#TechTrends', '#DigitalTransformation', '#FutureTech'],
+                'specific': ['#Programming', '#SoftwareEngineering', '#CodingLife'],
+                'community': ['#TechCommunity', '#DeveloperLife', '#TechNews']
+            }
         }
         
-        hashtags.update(base_hashtags.get(domain_key, base_hashtags['general'])[:3])
+        domain_hashtags = base_hashtags_variations.get(domain_key, base_hashtags_variations['general'])
+        
+        # Sélectionner des hashtags selon le ton et le format
+        if selected_tone.get('name') == 'enthusiastic' or selected_format.get('name') == 'hot_take':
+            hashtags.update(domain_hashtags['trendy'][:2])
+            hashtags.update(domain_hashtags['community'][:1])
+        elif selected_tone.get('name') == 'analytical' or selected_format.get('name') == 'deep_dive':
+            hashtags.update(domain_hashtags['core'][:2])
+            hashtags.update(domain_hashtags['specific'][:1])
+        elif selected_format.get('name') == 'breaking_news':
+            hashtags.add('#Breaking')
+            hashtags.update(domain_hashtags['trendy'][:2])
+        else:
+            # Mix par défaut
+            hashtags.add(domain_hashtags['core'][0])
+            hashtags.add(domain_hashtags['trendy'][0])
+            hashtags.add(domain_hashtags['community'][0])
         
         # Hashtags dynamiques basés sur les technologies mentionnées
         tech_hashtags = {
@@ -1140,22 +1325,66 @@ RÉSUMÉ:"""
                 if tech in text and len(hashtags) < 8:
                     hashtags.add(hashtag)
         
-        # Hashtags trending/génériques
-        trending = ['#TechNews', '#DeveloperCommunity', '#SoftwareEngineering']
-        for tag in trending:
+        # Hashtags trending/génériques avec variations selon le contexte
+        trending_variations = {
+            'breaking': ['#BreakingTech', '#TechNews', '#JustAnnounced'],
+            'trending': ['#Trending', '#TechTrends2024', '#HotInTech'],
+            'educational': ['#LearnToCode', '#TechEducation', '#SkillUp'],
+            'community': ['#TechTwitter', '#DevCommunity', '#CodeNewbie'],
+            'professional': ['#TechLeadership', '#EngineeringExcellence', '#TechStrategy']
+        }
+        
+        # Ajouter des hashtags selon le type d'articles
+        article_types = context.get('article_types', [])
+        if 'security' in article_types:
+            hashtags.add('#CyberSecurity')
+        if 'release' in article_types:
+            hashtags.add('#NewRelease')
+        if 'tutorial' in article_types or 'educational' in article_types:
+            hashtags.update(trending_variations['educational'][:1])
+        
+        # Ajouter des hashtags selon la temporalité
+        temporal_context = context.get('temporal_context', 'current')
+        if temporal_context in trending_variations:
+            hashtags.update(trending_variations[temporal_context][:1])
+        
+        # Compléter avec des hashtags génériques variés
+        generic_pool = [
+            '#TechNews', '#DeveloperLife', '#CodingLife', '#TechCommunity',
+            '#SoftwareDevelopment', '#Innovation', '#Technology', '#CodeLife',
+            '#Programming', '#Developers', '#TechIndustry', '#DigitalInnovation'
+        ]
+        
+        # Mélanger le pool pour plus de variété
+        random.shuffle(generic_pool)
+        
+        for tag in generic_pool:
             if len(hashtags) < 10:
                 hashtags.add(tag)
             else:
                 break
         
-        return ' '.join(sorted(list(hashtags)[:8]))  # Max 8 hashtags
+        # Retourner une sélection variée de hashtags
+        hashtag_list = list(hashtags)
+        random.shuffle(hashtag_list)  # Mélanger l'ordre pour plus de variation
+        
+        return ' '.join(hashtag_list[:8])  # Max 8 hashtags
     
-    def _generate_enhanced_sources(self, domain_key: str, articles: List[Dict]) -> str:
-        """Génère une section sources optimisée pour LinkedIn"""
+    def _generate_enhanced_sources(self, domain_key: str, articles: List[Dict], context: Dict = None) -> str:
+        """Génère une section sources optimisée pour LinkedIn avec variations"""
         domain_name = self.domains[domain_key]['name']
         
-        # Header plus engageant
-        sources_header = f"📚 **SOURCES {domain_name.upper()} ANALYSÉES**\n"
+        # Variations de headers selon le contexte
+        header_variations = [
+            f"📚 **SOURCES {domain_name.upper()} ANALYSÉES**",
+            f"🔍 **RÉFÉRENCES {domain_name.upper()} CONSULTÉES**",
+            f"📰 **VEILLE {domain_name.upper()} DU JOUR**",
+            f"💡 **INSIGHTS {domain_name.upper()} SOURCÉS**",
+            f"🌐 **PANORAMA {domain_name.upper()} ACTUEL**"
+        ]
+        
+        # Sélectionner un header aléatoire
+        sources_header = random.choice(header_variations) + "\n"
         
         # Regrouper par type de source pour plus de clarté
         source_groups = {
@@ -1217,9 +1446,18 @@ RÉSUMÉ:"""
                 
                 sources_section += "\n"
         
-        # Footer avec métadonnées
+        # Footer avec métadonnées - variations
         total_sources = len(set(article['source'] for article in articles))
-        sources_section += f"_Analyse basée sur {len(articles)} articles de {total_sources} sources fiables_"
+        
+        footer_variations = [
+            f"_Analyse basée sur {len(articles)} articles de {total_sources} sources fiables_",
+            f"_Synthèse de {len(articles)} publications issues de {total_sources} références reconnues_",
+            f"_Curation de {len(articles)} contenus provenant de {total_sources} médias spécialisés_",
+            f"_Agrégation de {len(articles)} ressources via {total_sources} plateformes de référence_",
+            f"_Veille réalisée sur {len(articles)} articles depuis {total_sources} sources tech de confiance_"
+        ]
+        
+        sources_section += random.choice(footer_variations)
         
         return sources_section.strip()
     
